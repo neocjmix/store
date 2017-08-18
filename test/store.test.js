@@ -43,9 +43,14 @@ describe("Store는", function () {
     });
 
     it("update시 subscribe한 callback의 parameter에 변경된 값을 전달한다", function (done) {
-        const singleSourceOfTruth = Store("", testData);
+        const store = Store("", {
+            foo:{
+                bar : "baz",
+                bar2 : "baz2"
+            }
+        });
 
-        singleSourceOfTruth
+        store
             .subscribe("foo.bar")
             .silently()
             .then(bar => {
@@ -53,10 +58,32 @@ describe("Store는", function () {
                 done();
             });
 
-        singleSourceOfTruth.commit("", {
+        store.commit("", {
             foo : {
                 bar : 1000
             }
+        })
+    });
+
+    it("undefined를 지정해서 property를 삭제할 수 있다", function (done) {
+        const store = Store("", {
+            foo:{
+                bar : "baz",
+                bar2 : "baz2"
+            }
+        });
+
+        store
+            .subscribe("foo.bar", "foo")
+            .silently()
+            .then((bar, foo) => {
+                expect(bar).to.equal(undefined);
+                expect(foo).to.equal(undefined);
+                done();
+            });
+
+        store.commit("", {
+            foo : undefined
         })
     });
 

@@ -4,16 +4,16 @@ import Path from './path'
 import Navigate from './navigate'
 import traverse from './traverse'
 
-const noChange = {
-    toString : function(){
-        return "nothing is Changed";
-    }
-};
-
+const noChange = new (function NoChange(){})();
+const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
 
 function _isChanged(value){
     return value !== noChange
+}
+
+function _isDeleted(value){
+    return value === deleted
 }
 
 function _Thenable(eventEmitter, eventName, immediateValues) {
@@ -60,15 +60,27 @@ function _applyPatch(state, patch) {
     const changedPaths = [];
     const newState = traverse(patch, function (newValue, currentPath, childValues) {
         const changedChildValues = _.pick(childValues, _isChanged);
+        const deletedChildValues = _.pick(childValues, _isDeleted);
         const currentProperty = Navigate(state).path(currentPath);
         const oldValue = currentProperty.get();
 
         //값 변화 없을 시 리턴
         if (oldValue === newValue) return noChange;
-        if (_.isPlainObject(oldValue) && _.isEmpty(changedChildValues)) return noChange;
+        if (!_.isUndefined(oldValue) && _.isUndefined(newValue)) {
+            changedPaths.push(currentPath);
+            return deleted;
+        }
+        if (_.isPlainObject(newValue) && _.isEmpty(changedChildValues)) return noChange;
 
         //기존 값이 객체이거나 새로운 값을 추가할때는 새로운 값 객체를 생성해서 할당
-        if (_.isPlainObject(oldValue)) newValue = _.assign({}, oldValue, changedChildValues);
+        if (_.isPlainObject(oldValue)){
+            //추가
+            newValue = _.assign({}, oldValue, changedChildValues);
+            //삭제
+            _.forEach(_.keys(deletedChildValues), function(key){
+                delete newValue[key]
+            })
+        }
 
         //이벤트 발생시킬 path 추가
         changedPaths.push(currentPath);
