@@ -1,5 +1,5 @@
 import './style.less'
-import Store from '../store'
+import Store from '..'
 import {Session} from '../persistence/browser'
 import template from './watcher.hbs'
 import jsonFormat from 'json-format'

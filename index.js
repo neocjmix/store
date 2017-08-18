@@ -110,11 +110,7 @@ function _replace(state, patch) {
         }
 
         if (_.isPlainObject(oldValue)) newValue = _.assign({}, changedChildValues);
-
-        if(oldValue === newValue){
-        }else{
-            currentPaths.push(currentPath);
-        }
+        if(oldValue !== newValue) currentPaths.push(currentPath);
         return newValue;
     });
 
