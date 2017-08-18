@@ -65,6 +65,28 @@ describe("Store는", function () {
         })
     });
 
+    it("객체인 노드를 원시타입으로 덮어쓸 수 있다", function (done) {
+        const store = Store("", {
+            foo:{
+                bar : "baz",
+                bar2 : "baz2"
+            }
+        });
+
+        store
+            .subscribe("foo.bar", "foo")
+            .silently()
+            .then((bar, foo) => {
+                expect(bar).to.equal(undefined);
+                expect(foo).to.equal(false);
+                done();
+            });
+
+        store.commit("", {
+            foo : false
+        })
+    });
+
     it("undefined를 지정해서 property를 삭제할 수 있다", function (done) {
         const store = Store("", {
             foo:{

@@ -8,11 +8,11 @@ const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
 
-function _isChanged(value){
+function _shouldChanged(value){
     return value !== noChange
 }
 
-function _isDeleted(value){
+function _shouldDeleted(value){
     return value === deleted
 }
 
@@ -59,21 +59,23 @@ function _registerEvents(eventStorage, eventPaths) {
 function _applyPatch(state, patch) {
     const changedPaths = [];
     const newState = traverse(patch, function (newValue, currentPath, childValues) {
-        const changedChildValues = _.pick(childValues, _isChanged);
-        const deletedChildValues = _.pick(childValues, _isDeleted);
+        const changedChildValues = _.pick(childValues, _shouldChanged);
+        const deletedChildValues = _.pick(childValues, _shouldDeleted);
         const currentProperty = Navigate(state).path(currentPath);
         const oldValue = currentProperty.get();
 
-        //값 변화 없을 시 리턴
+        //TODO 조건문 정리
         if (oldValue === newValue) return noChange;
+
         if (!_.isUndefined(oldValue) && _.isUndefined(newValue)) {
             changedPaths.push(currentPath);
             return deleted;
         }
+
         if (_.isPlainObject(newValue) && _.isEmpty(changedChildValues)) return noChange;
 
         //기존 값이 객체이거나 새로운 값을 추가할때는 새로운 값 객체를 생성해서 할당
-        if (_.isPlainObject(oldValue)){
+        if (_.isPlainObject(oldValue) && !_.isEmpty(changedChildValues)){
             //추가
             newValue = _.assign({}, oldValue, changedChildValues);
             //삭제
@@ -96,7 +98,7 @@ function _applyPatch(state, patch) {
 function _replace(state, patch) {
     const currentPaths = [];
     const newState = traverse(state, function (oldValue, currentPath, childValues) {
-        const changedChildValues = _.pick(childValues, _isChanged);
+        const changedChildValues = _.pick(childValues, _shouldChanged);
         let newValue = Navigate(patch).path(currentPath).get();
 
         if (_.isUndefined(newValue)) {
@@ -150,7 +152,7 @@ function Store(storeId, initState, pathString, eventEmitter){
 
             try{
                 const result = _applyPatch(_state, patch, _events);
-                if(_isChanged(result.state)) _state = result.state;
+                if(_shouldChanged(result.state)) _state = result.state;
 
                 const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
@@ -176,7 +178,7 @@ function Store(storeId, initState, pathString, eventEmitter){
             try{
                 const result = _replace(_state, patch, _events);
 
-                if(_isChanged(result.state)) _state = result.state;
+                if(_shouldChanged(result.state)) _state = result.state;
 
 
                 const eventPaths = _(result.changedPaths)
