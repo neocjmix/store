@@ -1,0 +1,45 @@
+#store-watcher{
+  display:block;
+  position: fixed;
+  z-index: 999999;
+  bottom: 20px;
+  left:20px;
+  main{
+    display: none;
+  }
+  &.on main{
+    display: block;
+    background:rgba(255,255,255,0.7);
+    padding : 1em;
+
+    pre{
+      code{
+        width: 35em;
+        height: 50em;
+        display: block;
+        overflow: scroll;
+      }
+    }
+
+    .control{
+      display: flex;
+
+      .current-index.live{
+        font-weight: bold;
+        color:red;
+      }
+
+      .revision-selector {
+        flex : 1;
+        margin-right: .5em;
+      }
+    }
+  }
+  footer{
+    .toggle{
+      width: 20px;
+      height: 20px;
+      background:white;
+    }
+  }
+}
