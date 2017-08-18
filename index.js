@@ -47,8 +47,17 @@ function _emitEvent(state, eventEmitter, message, eventPaths) {
     }).value();
 }
 
+function _registerEvents(eventStorage, eventPaths) {
+    const eventName = eventPaths.join(",");
+    eventPaths.forEach(function (path) {
+        eventStorage[path] = eventStorage[path] || {};
+        eventStorage[path][eventName] = eventStorage[path][eventName] + 1 || 1;
+    });
+    return eventName;
+}
+
 function _applyPatch(state, patch) {
-    const currentPaths = [];
+    const changedPaths = [];
     const newState = traverse(patch, function (newValue, currentPath, childValues) {
         const changedChildValues = _.pick(childValues, _isChanged);
         const currentProperty = Navigate(state).path(currentPath);
@@ -62,12 +71,12 @@ function _applyPatch(state, patch) {
         if (_.isPlainObject(oldValue)) newValue = _.assign({}, oldValue, changedChildValues);
 
         //이벤트 발생시킬 path 추가
-        currentPaths.push(currentPath);
+        changedPaths.push(currentPath);
         return newValue;
     });
 
     return {
-        changedPaths :  currentPaths,
+        changedPaths :  changedPaths,
         state : newState
     };
 }
@@ -76,14 +85,13 @@ function _replace(state, patch) {
     const currentPaths = [];
     const newState = traverse(state, function (oldValue, currentPath, childValues) {
         const changedChildValues = _.pick(childValues, _isChanged);
-        const currentProperty = Navigate(state).path(currentPath);
-
         let newValue = Navigate(patch).path(currentPath).get();
 
         if (_.isUndefined(newValue)) {
             currentPaths.push(currentPath);
             return noChange;
         }
+
         if (_.isPlainObject(oldValue) && _.isEmpty(changedChildValues)){
             currentPaths.push(currentPath);
             return noChange;
@@ -102,15 +110,6 @@ function _replace(state, patch) {
         changedPaths :  currentPaths,
         state : newState
     };
-}
-
-function _registerEvents(eventStorage, eventPaths) {
-    const eventName = eventPaths.join(",");
-    eventPaths.forEach(function (path) {
-        eventStorage[path] = eventStorage[path] || {};
-        eventStorage[path][eventName] = eventStorage[path][eventName] + 1 || 1;
-    });
-    return eventName;
 }
 
 function Store(storeId, initState, pathString, eventEmitter){
@@ -145,7 +144,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                 const result = _applyPatch(_state, patch, _events);
                 if(_isChanged(result.state)) _state = result.state;
 
-                let eventPaths = _(result.changedPaths)
+                const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
                         return _events[changedPath];
                     })
@@ -155,7 +154,6 @@ function Store(storeId, initState, pathString, eventEmitter){
                     .reduce(function(eventPaths1, eventPaths2){
                         return _.union(eventPaths1, eventPaths2);
                     });
-
                 _emitEvent(_state, _eventEmitter, message, eventPaths);
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message
@@ -173,7 +171,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                 if(_isChanged(result.state)) _state = result.state;
 
 
-                let eventPaths = _(result.changedPaths)
+                const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
                         return _events[changedPath];
                     })
