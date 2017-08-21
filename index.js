@@ -25,9 +25,7 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
                 }, [].slice.call(arguments,1))
             });
             if (immediateValues){
-                eventEmitter.emit.apply(
-                    eventEmitter,
-                    [eventName, "subscribing [" + eventName + "]"].concat(immediateValues));
+                callback.apply({message : "subscribing [" + eventName + "]"}, immediateValues);
             }
         },
         silently : function(){
