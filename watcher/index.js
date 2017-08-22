@@ -14,7 +14,7 @@ function Watcher(store, $container, $state, $index, $slider, $message, $toggleBu
         live:true
     });
 
-    Session.sync(watcherStore, "visible");
+    Session(watcherStore, "visible");
 
     store.subscribe("")
         .then(function(revision){
