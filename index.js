@@ -165,6 +165,9 @@ function Store(storeId, initState, pathString, eventEmitter){
             return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()));
         },
         commit : function(message, patch){
+            if(!_.isString(message)) throw new TypeError("missing commit message");
+            if(_.isUndefined(patch)) patch = {};
+
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
                 return _parentStore.commit(message, pathedPatch);
