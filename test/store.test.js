@@ -166,6 +166,25 @@ describe("Store는", function () {
         });
     });
 
+    it("event 발생을 안한채로", function () {
+        const store = Store("", { foo : 1});
+        let done = false;
+
+        store
+            .subscribe("foo")
+            .then(foo => {
+                store.commit("", {
+                    bar : 1
+                });
+            });
+
+        store
+            .subscribe("bar")
+            .then(function(bar){
+                expect(bar).to.be.equal(1);
+            });
+    });
+
     it("update하는 값이 기존 값과 같으면 callback을 실행하지 않는다", function () {
         let done = 0;
         const testData = {
@@ -292,7 +311,6 @@ describe("Store는", function () {
                 .subscribe("foo.bar2")
                 .silently()
                 .then(function(bar2){
-
                     expect(bar2).to.equal(0);
                     resolve();
                 });
@@ -317,6 +335,60 @@ describe("Store는", function () {
         resolve2();
 
         return Promise.all([pr1, pr2, pr3]);
+    });
+
+    it("reset case 테스트1", function (done) {
+        const store = Store("", {
+            foo : "bar",
+            foo2 : "bar2"
+        });
+        store.reset("testUpdate", {});
+        store.subscribe("", "foo", "foo2")
+            .then((root, foo, foo2)=>{
+                expect(root).to.deep.equal({});
+                expect(foo).to.be.undefined;
+                expect(foo2).to.be.undefined;
+                done()
+            });
+    });
+
+    it("reset case 테스트2", function (done) {
+        const store = Store("", {
+            bab : {
+                baz : {
+                    foo : "bar",
+                    foo2 : "bar2"
+                },
+                baz2 : "baz2"
+            }
+        });
+
+        store.path("bab").path("baz").reset("testUpdate", {});
+        store.subscribe("", "bab.baz", "bab.baz.foo", "bab.baz.foo2", "bab.baz2")
+            .then((root, baz, foo, foo2, baz2)=>{
+                expect(root).to.deep.equal({bab:{baz:{}, baz2 : "baz2"}});
+                expect(baz).to.deep.equal({});
+                expect(foo).to.be.undefined;
+                expect(foo2).to.be.undefined;
+                expect(baz2).to.be.equal("baz2");
+                done()
+            });
+    });
+
+    it("reset case 테스트3", function (done) {
+        const store = Store("", {
+            foo : {}
+        });
+
+        store.path("foo").reset("testUpdate", {a:1, b:2});
+        store.subscribe("", "foo", "foo.a", "foo.b")
+            .then((root, foo, a, b)=>{
+                expect(root).to.deep.equal({foo:{a:1, b:2}});
+                expect(foo).to.deep.equal({a:1, b:2});
+                expect(a).to.be.equal(1);
+                expect(b).to.be.equal(2);
+                done()
+            });
     });
 
     it("하위 객체가 업데이트 되면 이에 따라 변경된 상위 객체에 대해서도 event가 발생한다", function (done) {

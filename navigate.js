@@ -15,6 +15,7 @@ function _Property(obj, currentPath){
             }, obj);
         },
         set : function(newValue){
+            if(this.toString() === "") throw new RangeError("cannot set on object root path");
             let lastTarget;
             let lastPath;
 

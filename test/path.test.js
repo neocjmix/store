@@ -50,6 +50,10 @@ describe("path", function () {
             expect(path(a)).to.equal(a);
         });
 
+        it("chaining에 path객체를넣을 수 있다", function () {
+            expect(path("a").path(path("b")).toString()).to.equal("a.b");
+        });
+
         it("여러 case의 key name 에서 정상적으로 작동한다", function () {
             expect(path("a.b.c").toString()).to.equal("a.b.c");
             expect(path("a.b1[0].c").toString()).to.equal("a.b1[0].c");
@@ -72,6 +76,13 @@ describe("path", function () {
         it("path를 순서대로 array로 리턴한다", function () {
             expect(path("a.b[0].ab").toArray()).to.deep.equal(["a","b","0","ab"]);
         });
+
+        it("한path가 다른 path의 하위path 인지를 확인 할 수 있다", function () {
+            expect(path("a.b").contains("a.b.c")).to.be.equal(true);
+            expect(path("a.b").contains(path("a.b.c"))).to.be.equal(true);
+        });
+
+
     });
 
     describe("rootPath",function(){

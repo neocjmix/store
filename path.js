@@ -12,7 +12,10 @@ function path(fullPath, parent){
     let _lastDepthPath;
     let _parent;
 
-    if (_.isObject(fullPath)) return fullPath;
+    if (_.isObject(fullPath)){
+        if(!parent) return fullPath;
+        fullPath = fullPath.toString();
+    }
 
     if(fullPath === "" || _.isUndefined(fullPath)){
         if(parent) return parent;
@@ -49,6 +52,14 @@ function path(fullPath, parent){
         },
         path : function(nextPath){
             return path(nextPath, this)
+        },
+        contains : function(childPath){
+            childPath = path(childPath);
+            while(!childPath.isRoot()){
+                childPath = childPath.getParent();
+                if(childPath.toString() === this.toString()) return true;
+            }
+            return false;
         }
     }
 }
