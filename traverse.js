@@ -1,11 +1,11 @@
 import _ from 'lodash';
 import Path from './path';
 
-function traverse(obj, postOrder, path){
+function traverse(obj, postOrder, traverseArray, path){
     path = path || Path("");
     let mapValues;
 
-    if(_.isArray(obj)){
+    if(traverseArray && _.isArray(obj)){
         mapValues = _.map(obj, function(value, key){
             return traverse(value, postOrder, path.path(key))
         });
@@ -13,7 +13,7 @@ function traverse(obj, postOrder, path){
 
     if(_.isPlainObject(obj)) {
         mapValues = _.mapValues(obj, function (value, key) {
-            return traverse(value, postOrder, path.path(key));
+            return traverse(value, postOrder, traverseArray, path.path(key));
         });
     }
 
