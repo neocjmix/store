@@ -52,7 +52,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo.bar")
-            .silently()
+            .silent()
             .then(bar => {
                 expect(bar).to.equal(1000);
                 done();
@@ -75,7 +75,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo.bar", "foo")
-            .silently()
+            .silent()
             .then((bar, foo) => {
                 expect(bar).to.equal(undefined);
                 expect(foo).to.equal(false);
@@ -97,7 +97,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo.bar", "foo")
-            .silently()
+            .silent()
             .then((bar, foo) => {
                 expect(bar).to.equal(undefined);
                 expect(foo).to.equal(undefined);
@@ -114,7 +114,7 @@ describe("Store는", function () {
 
         singleSourceOfTruth
             .subscribe("foo.bar3.baz")
-            .silently()
+            .silent()
             .then(baz => {
                 expect(baz).to.equal("good");
                 done();
@@ -144,7 +144,7 @@ describe("Store는", function () {
 
         singleSourceOfTruth
             .subscribe("foo.bar", "foo.bar2", "foo.bar3.baz", "foo.bar4.bam.boom")
-            .silently()
+            .silent()
             .then((bar, bar2, baz, boom) => {
                 expect(bar).to.equal(1000);
                 expect(bar2).to.equal(2000);
@@ -201,22 +201,22 @@ describe("Store는", function () {
 
         store
             .subscribe("")
-            .silently()
+            .silent()
             .then(() => done++);
 
         store
             .subscribe("foo")
-            .silently()
+            .silent()
             .then(() => done++);
 
         store
             .subscribe("foo.bar")
-            .silently()
+            .silent()
             .then(() => done++);
 
         store
             .subscribe("foo.bar3.baz")
-            .silently()
+            .silent()
             .then(() => done++);
 
         store.commit("", {
@@ -248,7 +248,7 @@ describe("Store는", function () {
         const store = Store("", testData);
         store
             .subscribe("foo.bar2")
-            .silently()
+            .silent()
             .then(function(){
                 expect(this.message).to.equal("testUpdate");
             });
@@ -274,7 +274,7 @@ describe("Store는", function () {
         const pr1 = new Promise(function(resolve, reject){
             store
                 .subscribe("")
-                .silently()
+                .silent()
                 .then(function(state){
                     expect(state).to.deep.equal({
                         foo:{
@@ -289,7 +289,7 @@ describe("Store는", function () {
         const pr2 = new Promise(function(resolve, reject){
             store
                 .subscribe("foo.bar3")
-                .silently()
+                .silent()
                 .then(function(bar3){
                     expect(bar3).to.be.undefined;
                     resolve();
@@ -299,7 +299,7 @@ describe("Store는", function () {
         const pr4 = new Promise(function(resolve, reject){
             store
                 .subscribe("foo.bar3.baz")
-                .silently()
+                .silent()
                 .then(function(baz){
                     expect(baz).to.be.undefined;
                     resolve();
@@ -309,7 +309,7 @@ describe("Store는", function () {
         const pr5 = new Promise(function(resolve, reject){
             store
                 .subscribe("foo.bar2")
-                .silently()
+                .silent()
                 .then(function(bar2){
                     expect(bar2).to.equal(0);
                     resolve();
@@ -321,7 +321,7 @@ describe("Store는", function () {
             resolve2 = resolve;
             store
                 .subscribe("foo.bar")
-                .silently()
+                .silent()
                 .then(function (bar) {
                     reject();
                 });
@@ -409,7 +409,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo")
-            .silently()
+            .silent()
             .then(function(foo){
                 expect(foo).to.deep.equal({
                     bar : "baz",
@@ -433,6 +433,78 @@ describe("Store는", function () {
                 }
             }
         });
+    });
+
+    it("commit은 동기적으로 실행된다. 중첩된경우에도 이벤트핸들러는 즉시 실행된다", function () {
+        const result = [];
+        const store = Store("", {});
+
+        store
+            .subscribe("a")
+            .silent()
+            .then(function(a){
+                result.push(a);
+            });
+
+        store
+            .commit("testUpdate", {
+                a:1
+            });
+
+        result.push(0);
+        expect(result).to.deep.equal([1,0]);
+    });
+
+    it("commit을 비동기적으로 처리할 수 있다", function (done) {
+        const result = [];
+        const store = Store("", {});
+        store
+            .subscribe("a")
+            .silent()
+            .then(function(a){
+                store.async.commit("testUpdate", {
+                        a:2
+                    });
+
+                result.push(a);
+                if(result.length > 2) {
+                    expect(result).to.deep.equal([0,1,2]);
+                    done();
+                }
+            });
+
+        store.async.commit("testUpdate", {
+            a:1
+        });
+        result.push(0);
+    });
+
+    it("commit을 먼저 하고 callback을 미뤗다가 묶어서 실행할 수 있다", function () {
+        const store = Store("", {});
+        const result = [];
+
+        store
+            .subscribe("")
+            .silent()
+            .then(function(state){
+                result.push(state);
+            });
+
+        const paused = store.pause();
+        store
+            .commit("testUpdate", {
+                a:1
+            });
+        expect(paused.length()).to.equal(1);
+
+        store
+            .commit("testUpdate", {
+                b:2
+            });
+        expect(paused.length()).to.equal(2);
+
+        paused.resume();
+        expect(result).to.deep.equal([{a:1,b:2}]);
     });
 
     describe("하위구조에 대해서 작동하는 sub-store를", function () {
@@ -469,7 +541,7 @@ describe("Store는", function () {
 
             subStore
                 .subscribe("a", "c", "d")
-                .silently()
+                .silent()
                 .then(function(a, c, d){
                     expect(a).to.equal(3);
                     expect(c).to.deep.equal([10,20,33,40]);
@@ -504,7 +576,7 @@ describe("Store는", function () {
             const subUpdate = new Promise(function(resolve, reject) {
                 subStore
                     .subscribe("a", "c", "d")
-                    .silently()
+                    .silent()
                     .then(function(a, c, d){
                         expect(a).to.equal(6);
                         expect(c).to.deep.equal([100,34,234,56]);
@@ -516,7 +588,7 @@ describe("Store는", function () {
             const mainUpdate = new Promise(function(resolve, reject) {
                 store
                     .subscribe("")
-                    .silently()
+                    .silent()
                     .then(function (root) {
                         expect(root).to.deep.equal({
                             foo: {
@@ -538,7 +610,7 @@ describe("Store는", function () {
             const mainUpdate2 = new Promise(function(resolve, reject) {
                 store
                     .subscribe("foo")
-                    .silently()
+                    .silent()
                     .then(function (root) {
                         expect(root).to.deep.equal({
                             bar: "baz",
@@ -582,7 +654,7 @@ describe("Store는", function () {
             store
                 .path("foo")
                 .subscribe("bar2.baz.a", "bar2.baz.c", "bar2.baz.d")
-                .silently()
+                .silent()
                 .then(function(a, c, d){
                     expect(a).to.equal(3);
                     expect(c).to.deep.equal([10,20,33,40]);

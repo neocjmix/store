@@ -3,6 +3,7 @@ import EventEmitter from 'eventemitter3'
 import Path from './path'
 import Navigate from './navigate'
 import traverse from './traverse'
+import Queue from './queue'
 
 const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
@@ -19,16 +20,17 @@ function _shouldDeleted(value){
 function _Thenable(eventEmitter, eventName, immediateValues) {
     return {
         then : function(callback){
-            eventEmitter.on(eventName, function(){
+            eventEmitter.on(eventName, function(message){
+                const values = [].slice.call(arguments,1);
                 callback.apply({
-                    message : arguments[0]
-                }, [].slice.call(arguments,1))
+                    message : message
+                }, values)
             });
             if (immediateValues){
                 callback.apply({message : "subscribing [" + eventName + "]"}, immediateValues);
             }
         },
-        silently : function(){
+        silent : function(){
             return _Thenable(eventEmitter, eventName);
         }
     }
@@ -45,11 +47,11 @@ function _emitEvent(state, eventEmitter, message, eventPaths) {
     }).value();
 }
 
-function _registerEvents(eventStorage, eventPaths) {
+function _registerEvents(eventRegistry, eventPaths) {
     const eventName = eventPaths.join(",");
     eventPaths.forEach(function (path) {
-        eventStorage[path] = eventStorage[path] || {};
-        eventStorage[path][eventName] = eventStorage[path][eventName] + 1 || 1;
+        eventRegistry[path] = eventRegistry[path] || {};
+        eventRegistry[path][eventName] = eventRegistry[path][eventName] + 1 || 1;
     });
     return eventName;
 }
@@ -141,12 +143,29 @@ function _replace(state, patch, basePath) {
     };
 }
 
+function _applyCommits(queue, state, eventEmitter){
+    const eventData = queue.dequeueAll();
+    _emitEvent(state, eventEmitter,
+        _(eventData)
+            .pluck("message")
+            .uniq()
+            .value()
+            .join(",\n"),
+        _(eventData)
+            .pluck("eventPaths")
+            .flatten()
+            .uniq()
+            .value());
+}
+
 function Store(storeId, initState, pathString, eventEmitter){
     let _state = initState || {};
+    let _paused = false;
+    const _queue = Queue();
     const _path = _.isUndefined(pathString) ? undefined : Path(pathString);
     const _parentStore = _.isFunction(initState.subscribe) && _.isFunction(initState.commit) ? initState : undefined;
     const _eventEmitter = eventEmitter || new EventEmitter();
-    const _events = {};
+    const _eventRegistry = {};
     const instance = {
         getId : function(){
             return storeId;
@@ -161,7 +180,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                 }))
             }
 
-            const eventName = _registerEvents(_events, paths);
+            const eventName = _registerEvents(_eventRegistry, paths);
             return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()));
         },
         commit : function(message, patch){
@@ -174,22 +193,30 @@ function Store(storeId, initState, pathString, eventEmitter){
             }
 
             try{
-                const result = _applyPatch(_state, patch, _events);
+                const result = _applyPatch(_state, patch);
                 if(_shouldChanged(result.state)) _state = result.state;
 
                 const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
-                        return _events[changedPath];
+                        return _eventRegistry[changedPath];
                     })
                     .map(function(changedPath){
-                        return _.keys(_events[changedPath]);
+                        return _.keys(_eventRegistry[changedPath]);
                     })
                     .reduce(function(eventPaths1, eventPaths2){
                         return _.union(eventPaths1, eventPaths2);
                     });
-                _emitEvent(_state, _eventEmitter, message, eventPaths);
+
+                if(_paused){
+                    _queue.enqueue({
+                        message : message,
+                        eventPaths : eventPaths
+                    });
+                }else{
+                    _emitEvent(_state, _eventEmitter, message, eventPaths);
+                }
             }catch (error){
-                error.message = "error while commit ["+ message +"] caused by\n" + error.message
+                error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                 throw error;
             }
         },
@@ -203,23 +230,50 @@ function Store(storeId, initState, pathString, eventEmitter){
 
                 const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
-                        return _events[changedPath];
+                        return _eventRegistry[changedPath];
                     })
                     .map(function(changedPath){
-                        return _.keys(_events[changedPath]);
+                        return _.keys(_eventRegistry[changedPath]);
                     })
                     .reduce(function(eventPaths1, eventPaths2){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
-                _emitEvent(_state, _eventEmitter, message, eventPaths);
+                if(_paused){
+                    _queue.enqueue({
+                        message : message,
+                        eventPaths : eventPaths
+                    });
+                }else{
+                    _emitEvent(_state, _eventEmitter, message, eventPaths);
+                }
             }catch (error){
-                error.message = "error while commit ["+ message +"] caused by\n" + error.message
+                error.message = "error while reset ["+ message +"] caused by\n" + error.message;
                 throw error;
             }
         },
         path :function(pathString){
             return Store(this.getId(), this, pathString, _eventEmitter);
+        },
+        async : {
+            commit : function(message, patch) {
+                _.defer(_.bind(instance.commit, instance), message, patch);
+            },
+            reset : function(message, patch){
+                _.defer(_.bind(instance.reset, instance), message, patch);
+            }
+        },
+        pause : function(){
+            _paused = true;
+            return {
+                length : function(){
+                    return _queue.length();
+                },
+                resume : function(){
+                    _paused = false;
+                    _applyCommits(_queue, _state, _eventEmitter);
+                }
+            }
         }
     };
 
