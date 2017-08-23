@@ -1,5 +1,5 @@
 import chai from "chai";
-import path from "../path";
+import path from "../src/path";
 
 const expect = chai.expect;
 

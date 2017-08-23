@@ -7,7 +7,7 @@ function traverse(obj, postOrder, traverseArray, path){
 
     if(traverseArray && _.isArray(obj)){
         mapValues = _.map(obj, function(value, key){
-            return traverse(value, postOrder, path.path(key))
+            return traverse(value, postOrder, traverseArray, path.path(key))
         });
     }
 

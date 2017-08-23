@@ -1,6 +1,6 @@
 import 'babel-polyfill';
 import chai from "chai";
-import traverse from "../traverse";
+import traverse from "../src/traverse";
 
 const expect = chai.expect;
 
@@ -35,7 +35,6 @@ describe("Traverse는", function () {
                 testData.a.aa,
                 "aba", "abb",
                 testData.a.ab,
-                0, 10, 20, testData.a.ac[1], "2",
                 testData.a.ac,
                 testData.a,
                 "ba",
@@ -50,6 +49,49 @@ describe("Traverse는", function () {
             traverse(testData, (obj, path) => {
                 results.push(path.toString());
             });
+
+            expect(results).to.deep.equal([
+                "a.aa.aaa",
+                "a.aa.aab",
+                "a.aa",
+                "a.ab.aba",
+                "a.ab.abb",
+                "a.ab",
+                "a.ac",
+                "a",
+                "b.ba",
+                "b",
+                ""
+            ]);
+        });
+
+        it("array 내부도 순회할수 있다(값)", function () {
+            const results = [];
+
+            traverse(testData, (obj) => {
+                results.push(obj);
+            }, true);
+
+            expect(results).to.deep.equal([
+                "aaa", "aab",
+                testData.a.aa,
+                "aba", "abb",
+                testData.a.ab,
+                0, 10, 20, testData.a.ac[1], "2",
+                testData.a.ac,
+                testData.a,
+                "ba",
+                testData.b,
+                testData
+            ]);
+        });
+
+        it("array 내부도 순회할수 있다(path)", function () {
+            const results = [];
+
+            traverse(testData, (obj, path) => {
+                results.push(path.toString());
+            }, true);
 
             expect(results).to.deep.equal([
                 "a.aa.aaa",

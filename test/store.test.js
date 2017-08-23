@@ -1,6 +1,6 @@
 import 'babel-polyfill';
 import chai from "chai";
-import Store from "..";
+import Store from "../src/store";
 
 const expect = chai.expect;
 

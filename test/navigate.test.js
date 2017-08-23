@@ -1,6 +1,6 @@
 import {expect} from "chai";
-import Navigate from "../navigate";
-import Path from "../path";
+import Navigate from "../src/navigate";
+import Path from "../src/path";
 
 describe("Navigate는", function() {
     it("full path로 obj를 탐색한다", function () {
