@@ -162,7 +162,7 @@ function Store(storeId, initState, pathString, eventEmitter){
     let _state = initState || {};
     let _paused = false;
     const _queue = Queue();
-    const _path = _.isUndefined(pathString) ? undefined : Path(pathString);
+    const _path = _.isUndefined(pathString) ? "" : Path(pathString);
     const _parentStore = _.isFunction(initState.subscribe) && _.isFunction(initState.commit) ? initState : undefined;
     const _eventEmitter = eventEmitter || new EventEmitter();
     const _eventRegistry = {};
@@ -207,6 +207,8 @@ function Store(storeId, initState, pathString, eventEmitter){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
+                if(!eventPaths) return;
+
                 if(_paused){
                     _queue.enqueue({
                         message : message,
@@ -238,6 +240,8 @@ function Store(storeId, initState, pathString, eventEmitter){
                     .reduce(function(eventPaths1, eventPaths2){
                         return _.union(eventPaths1, eventPaths2);
                     });
+
+                if(!eventPaths) return;
 
                 if(_paused){
                     _queue.enqueue({
