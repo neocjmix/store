@@ -111,25 +111,26 @@ function _replace(state, patch, basePath) {
 
         //기존 값이 객체이거나 새로운 값을 추가할때는 새로운 값 객체를 생성해서 할당
         if (_.isPlainObject(oldValue)){
+            const oldValueCopy = _.assign({}, oldValue);
+
             if(!currentPath.contains(basePath)){
                 //삭제
-                _.keys(oldValue)
+                _.keys(oldValueCopy)
                     .forEach(function(key){
                         let newVar = Navigate(newValue).path(key).get();
                         if(_.isUndefined(newVar)){
                             //삭제된 subtree path 추가
-                            traverse(oldValue[key], function(value, path){
+                            traverse(oldValueCopy[key], function(value, path){
                                 let items = Path(currentPath).path(key).path(path);
                                 changedPaths.push(items);
                             });
-                            delete oldValue[key];
+                            delete oldValueCopy[key];
                         }
                     });
             }
 
-
             //추가
-            newValue = _.assign({}, oldValue, changedChildValues);
+            newValue = _.assign(oldValueCopy, changedChildValues);
         }
 
         //이벤트 발생시킬 path 추가

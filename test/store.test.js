@@ -391,6 +391,27 @@ describe("Store는", function () {
             });
     });
 
+    it("reset 후에도 이전 객체를 변경하지 않는다", function () {
+        const store = Store("", {foo : {bar :{a:1,b:2}}});
+        const states = [];
+
+        store
+            .subscribe("")
+            .then(function(state){
+                states.push(state);
+            });
+
+        store
+            .path("foo")
+            .path("bar")
+            .reset("", {});
+
+        expect(states).to.deep.equal([
+            {foo : {bar :{a:1,b:2}}},
+            {foo : {bar :{}}}
+        ])
+    });
+
     it("하위 객체가 업데이트 되면 이에 따라 변경된 상위 객체에 대해서도 event가 발생한다", function (done) {
         const testData = {
             foo:{
