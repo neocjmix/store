@@ -257,6 +257,7 @@ function Store(storeId, initState, pathString, eventEmitter){
             }
         },
         path :function(pathString){
+            if(_.isUndefined(pathString)) pathString = "";
             return Store(this.getId(), this, pathString, _eventEmitter);
         },
         async : {
