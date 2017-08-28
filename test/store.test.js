@@ -1,6 +1,7 @@
-import 'babel-polyfill';
-import chai from "chai";
-import Store from "../src/store";
+import 'babel-polyfill'
+import chai from "chai"
+import _ from "lodash"
+import Store from "../src/store"
 
 const expect = chai.expect;
 
@@ -391,7 +392,40 @@ describe("Store는", function () {
             });
     });
 
-    it("reset 후에도 이전 객체를 변경하지 않는다", function () {
+    it("reset case 테스트3", function (done) {
+        const store = Store("", {
+            foo : {}
+        });
+
+        store.reset("testUpdate", {a:1, b:2});
+        store.subscribe("", "foo", "a", "b")
+            .then((root, foo, a, b)=>{
+                expect(root).to.deep.equal({a:1, b:2});
+                expect(foo).to.deep.equal(undefined);
+                expect(a).to.be.equal(1);
+                expect(b).to.be.equal(2);
+                done()
+            });
+    });
+
+    it("reset case 테스트4", function (done) {
+        const store = Store("", {
+            foo : {}
+        });
+
+        store.path("bar").reset("testUpdate", {a:1, b:2});
+        store.subscribe("", "foo", "bar", "bar.a", "bar.b")
+            .then((root, foo, bar, a, b)=>{
+                expect(root).to.deep.equal({foo:{}, bar : {a:1, b:2}});
+                expect(foo).to.deep.equal({});
+                expect(bar).to.deep.equal({a:1, b:2});
+                expect(a).to.be.equal(1);
+                expect(b).to.be.equal(2);
+                done()
+            });
+    });
+
+    it("reset 후에도 이전 객체를 변경하지 않는다", function (done) {
         const store = Store("", {foo : {bar :{a:1,b:2}}});
         const states = [];
 
@@ -406,10 +440,13 @@ describe("Store는", function () {
             .path("bar")
             .reset("", {});
 
-        expect(states).to.deep.equal([
-            {foo : {bar :{a:1,b:2}}},
-            {foo : {bar :{}}}
-        ])
+        _.defer(function(){
+            expect(states).to.deep.equal([
+                {foo : {bar :{a:1,b:2}}},
+                {foo : {bar :{}}}
+            ]);
+            done();
+        })
     });
 
     it("하위 객체가 업데이트 되면 이에 따라 변경된 상위 객체에 대해서도 event가 발생한다", function (done) {
@@ -456,34 +493,14 @@ describe("Store는", function () {
         });
     });
 
-    it("commit은 동기적으로 실행된다. 중첩된경우에도 이벤트핸들러는 즉시 실행된다", function () {
-        const result = [];
-        const store = Store("", {});
-
-        store
-            .subscribe("a")
-            .silent()
-            .then(function(a){
-                result.push(a);
-            });
-
-        store
-            .commit("testUpdate", {
-                a:1
-            });
-
-        result.push(0);
-        expect(result).to.deep.equal([1,0]);
-    });
-
-    it("commit을 비동기적으로 처리할 수 있다", function (done) {
+    it("commit은 비동기적으로 처리된다", function (done) {
         const result = [];
         const store = Store("", {});
         store
             .subscribe("a")
             .silent()
             .then(function(a){
-                store.async.commit("testUpdate", {
+                store.commit("testUpdate", {
                         a:2
                     });
 
@@ -494,13 +511,13 @@ describe("Store는", function () {
                 }
             });
 
-        store.async.commit("testUpdate", {
+        store.commit("testUpdate", {
             a:1
         });
         result.push(0);
     });
 
-    it("commit을 먼저 하고 callback을 미뤗다가 묶어서 실행할 수 있다", function () {
+    it("commit을 먼저 하고 callback을 미뤗다가 묶어서 실행할 수 있다", function (done) {
         const store = Store("", {});
         const result = [];
 
@@ -523,9 +540,12 @@ describe("Store는", function () {
                 b:2
             });
         expect(paused.length()).to.equal(2);
-
         paused.resume();
-        expect(result).to.deep.equal([{a:1,b:2}]);
+
+        _.defer(function(){
+            expect(result).to.deep.equal([{a:1,b:2}]);
+            done();
+        });
     });
 
     describe("하위구조에 대해서 작동하는 sub-store를", function () {

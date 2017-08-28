@@ -80,6 +80,9 @@ describe("path", function () {
         it("한path가 다른 path의 하위path 인지를 확인 할 수 있다", function () {
             expect(path("a.b").contains("a.b.c")).to.be.equal(true);
             expect(path("a.b").contains(path("a.b.c"))).to.be.equal(true);
+            expect(path("a.b").contains(path("a.b"))).to.be.equal(false);
+            expect(path("a.b").contains(path("a").path("b"))).to.be.equal(false);
+            expect(path("a.b").contains(path("a"))).to.be.equal(false);
         });
 
 

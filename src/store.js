@@ -10,7 +10,7 @@ const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
 
 function _shouldChanged(value){
-    return value !== noChange
+    return value !== noChange;
 }
 
 function _shouldDeleted(value){
@@ -20,17 +20,17 @@ function _shouldDeleted(value){
 function _Thenable(eventEmitter, eventName, immediateValues) {
     return {
         then : function(callback){
-            eventEmitter.on(eventName, function(message, patch){
-                const values = [].slice.call(arguments,2);
+            eventEmitter.on(eventName, function (message, patch) {
                 callback.apply({
-                    message : message,
-                    patch : patch
-                }, values)
+                    message: message,
+                    patch: patch
+                }, [].slice.call(arguments, 2));
             });
-            if (immediateValues){
+
+            if (immediateValues) {
                 callback.apply({
-                    message : "subscribing [" + eventName + "]",
-                    patch : undefined //TODO
+                    message: "subscribing [" + eventName + "]",
+                    patch: undefined //TODO
                 }, immediateValues);
             }
         },
@@ -44,12 +44,12 @@ function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
     _(eventPaths).forEach(function (eventPath) {
         const eventArguments = _(eventPath.split(","))
             .map(function (path) {
-                const value = Navigate(state).path(path).get();
-                if(path !== "") Navigate(patch).path(path).set(value);
-                return value;
+                return Navigate(state).path(path).get();
             }).value();
 
-        eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
+        _.defer(function(){
+            eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
+        });
     }).value();
 }
 
@@ -80,8 +80,8 @@ function _applyPatch(state, patch) {
 
         if (_.isPlainObject(newValue) && !_.isEmpty(newValue) && _.isEmpty(changedChildValues)) return noChange;
 
-        //기존 값이 객체이거나 새로운 값을 추가할때는 새로운 값 객체를 생성해서 할당
-        if (_.isPlainObject(oldValue) && !_.isEmpty(changedChildValues)){
+        //기존 값이 객체일때는 childValues를 적용
+        if (_.isPlainObject(oldValue) && (!_.isEmpty(changedChildValues) || !_.isEmpty(deletedChildValues))){
             //추가
             newValue = _.assign({}, oldValue, changedChildValues);
             //삭제
@@ -102,47 +102,40 @@ function _applyPatch(state, patch) {
 }
 
 function _replace(state, patch, basePath) {
-
-    if(basePath) patch = Navigate({}).path(basePath).set(patch);
-    basePath = Path(basePath || "");
     const changedPaths = [];
-    const newState = traverse(patch, function (newValue, currentPath, childValues) {
-        const changedChildValues = _.pick(childValues, _shouldChanged);
-        const currentProperty = Navigate(state).path(currentPath);
-        const oldValue = currentProperty.get();
 
-        //TODO 조건문 정리
-        if (oldValue === newValue) return noChange;
-        if (_.isPlainObject(newValue) && !_.isEmpty(newValue) && _.isEmpty(changedChildValues)) return noChange;
-
-        //기존 값이 객체이거나 새로운 값을 추가할때는 새로운 값 객체를 생성해서 할당
-        if (_.isPlainObject(oldValue)){
-            const oldValueCopy = _.assign({}, oldValue);
-
-            if(!currentPath.contains(basePath)){
-                //삭제
-                _.keys(oldValueCopy)
-                    .forEach(function(key){
-                        let newVar = Navigate(newValue).path(key).get();
-                        if(_.isUndefined(newVar)){
-                            //삭제된 subtree path 추가
-                            traverse(oldValueCopy[key], function(value, path){
-                                let items = Path(currentPath).path(key).path(path);
-                                changedPaths.push(items);
-                            });
-                            delete oldValueCopy[key];
-                        }
-                    });
-            }
-
-            //추가
-            newValue = _.assign(oldValueCopy, changedChildValues);
+    const newState = traverse(state, function(oldValue, currentPath, childValues){
+        if(basePath && !basePath.contains(currentPath) && !currentPath.contains(basePath) && currentPath+"" !== basePath+"") {
+            return noChange;
         }
 
-        //이벤트 발생시킬 path 추가
+        const changedChildValues = _.pick(childValues, _shouldChanged);
+        const deletedChildValues = _.pick(childValues, _shouldDeleted);
+        let newValue = Navigate(patch).path(currentPath).get();
+
+        if(oldValue === newValue) return noChange;
+        if(_.isUndefined(newValue)){
+            changedPaths.push(currentPath);
+            return deleted;
+        }
+
+        if (_.isPlainObject(oldValue) && _.isPlainObject(newValue)){
+            newValue = _.assign({}, oldValue, newValue);
+
+            if(!_.isEmpty(changedChildValues)){
+                newValue = _.assign(newValue, changedChildValues);
+            }
+
+            if(!_.isEmpty(deletedChildValues)){
+                _.forEach(_.keys(deletedChildValues), function(key){
+                    delete newValue[key];
+                })
+            }
+        }
+
         changedPaths.push(currentPath);
         return newValue;
-    });
+    }, true);
 
     return {
         changedPaths :  changedPaths,
@@ -236,14 +229,14 @@ function Store(storeId, initState, pathString, eventEmitter){
                 throw error;
             }
         },
-        reset : function(message, patch, path){
+        reset : function(message, patch, basePath){
             if (this.isSubStore()) {
-                return _parentStore.reset(message, patch, Path(_path).path(path));
+                const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
+                return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
             }
             try{
-                const result = _replace(_state, patch, path);
+                const result = _replace(_state, patch, basePath);
                 if(_shouldChanged(result.state)) _state = result.state;
-
                 const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
                         return _eventRegistry[changedPath];
@@ -273,14 +266,6 @@ function Store(storeId, initState, pathString, eventEmitter){
         path :function(pathString){
             if(_.isUndefined(pathString)) pathString = "";
             return Store(this.getId(), this, pathString, _eventEmitter);
-        },
-        async : {
-            commit : function(message, patch) {
-                _.defer(_.bind(instance.commit, instance), message, patch);
-            },
-            reset : function(message, patch){
-                _.defer(_.bind(instance.reset, instance), message, patch);
-            }
         },
         pause : function(){
             _paused = true;
