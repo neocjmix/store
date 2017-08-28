@@ -20,14 +20,18 @@ function _shouldDeleted(value){
 function _Thenable(eventEmitter, eventName, immediateValues) {
     return {
         then : function(callback){
-            eventEmitter.on(eventName, function(message){
-                const values = [].slice.call(arguments,1);
+            eventEmitter.on(eventName, function(message, patch){
+                const values = [].slice.call(arguments,2);
                 callback.apply({
-                    message : message
+                    message : message,
+                    patch : patch
                 }, values)
             });
             if (immediateValues){
-                callback.apply({message : "subscribing [" + eventName + "]"}, immediateValues);
+                callback.apply({
+                    message : "subscribing [" + eventName + "]",
+                    patch : undefined //TODO
+                }, immediateValues);
             }
         },
         silent : function(){
@@ -36,14 +40,16 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
     }
 }
 
-function _emitEvent(state, eventEmitter, message, eventPaths) {
+function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
     _(eventPaths).forEach(function (eventPath) {
         const eventArguments = _(eventPath.split(","))
             .map(function (path) {
-                return Navigate(state).path(path).get();
+                const value = Navigate(state).path(path).get();
+                if(path !== "") Navigate(patch).path(path).set(value);
+                return value;
             }).value();
 
-        eventEmitter.emit.apply(eventEmitter, [eventPath, message].concat(eventArguments));
+        eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
     }).value();
 }
 
@@ -145,18 +151,25 @@ function _replace(state, patch, basePath) {
 }
 
 function _applyCommits(queue, state, eventEmitter){
+
     const eventData = queue.dequeueAll();
-    _emitEvent(state, eventEmitter,
-        _(eventData)
-            .pluck("message")
-            .uniq()
-            .value()
-            .join(",\n"),
-        _(eventData)
-            .pluck("eventPaths")
-            .flatten()
-            .uniq()
-            .value());
+    const messages = _(eventData)
+        .pluck("message")
+        .uniq()
+        .value()
+        .join(",\n");
+    const paths = _(eventData)
+        .pluck("eventPaths")
+        .flatten()
+        .uniq()
+        .value();
+
+    const patch = _(paths).reduce(function(patched, path){
+        if(path !== "") Navigate(patched).path(path).set(Navigate(state).path(path).get());
+        return patched;
+    }, {});
+
+    _emitEvent(state, eventEmitter, messages, patch, paths);
 }
 
 function Store(storeId, initState, pathString, eventEmitter){
@@ -216,7 +229,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         eventPaths : eventPaths
                     });
                 }else{
-                    _emitEvent(_state, _eventEmitter, message, eventPaths);
+                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
                 }
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message;
@@ -250,7 +263,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         eventPaths : eventPaths
                     });
                 }else{
-                    _emitEvent(_state, _eventEmitter, message, eventPaths);
+                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
                 }
             }catch (error){
                 error.message = "error while reset ["+ message +"] caused by\n" + error.message;
