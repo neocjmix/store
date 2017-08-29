@@ -192,7 +192,7 @@ function Store(storeId, initState, pathString, eventEmitter){
         },
         commit : function(message, patch){
             if(!_.isString(message)) throw new TypeError("missing commit message");
-            if(_.isUndefined(patch)) patch = {};
+            // if(_.isUndefined(patch)) patch = {};
 
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
