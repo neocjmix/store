@@ -40,16 +40,21 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
     }
 }
 
-function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
+function _emitEvent(state, eventEmitter, message, patch, eventPaths, sync) {
     _(eventPaths).forEach(function (eventPath) {
         const eventArguments = _(eventPath.split(","))
             .map(function (path) {
                 return Navigate(state).path(path).get();
             }).value();
 
-        _.defer(function(){
+        if(sync){
             eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
-        });
+        }else{
+            _.defer(function(){
+                eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
+            });
+        }
+
     }).value();
 }
 
@@ -143,7 +148,7 @@ function _replace(state, patch, basePath) {
     };
 }
 
-function _applyCommits(queue, state, eventEmitter){
+function _applyCommits(queue, state, eventEmitter, sync){
 
     const eventData = queue.dequeueAll();
     const messages = _(eventData)
@@ -162,7 +167,7 @@ function _applyCommits(queue, state, eventEmitter){
         return patched;
     }, {});
 
-    _emitEvent(state, eventEmitter, messages, patch, paths);
+    _emitEvent(state, eventEmitter, messages, patch, paths, sync);
 }
 
 function Store(storeId, initState, pathString, eventEmitter){
@@ -190,13 +195,13 @@ function Store(storeId, initState, pathString, eventEmitter){
             const eventName = _registerEvents(_eventRegistry, paths);
             return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()));
         },
-        commit : function(message, patch){
+        commit : function(message, patch, sync){
             if(!_.isString(message)) throw new TypeError("missing commit message");
             // if(_.isUndefined(patch)) patch = {};
 
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
-                return _parentStore.commit(message, pathedPatch);
+                return _parentStore.commit(message, pathedPatch, sync);
             }
 
             try{
@@ -222,17 +227,17 @@ function Store(storeId, initState, pathString, eventEmitter){
                         eventPaths : eventPaths
                     });
                 }else{
-                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
+                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths, sync);
                 }
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                 throw error;
             }
         },
-        reset : function(message, patch, basePath){
+        reset : function(message, patch, sync, basePath){
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
-                return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
+                return _parentStore.reset(message, pathedPatch, sync, _path.path(basePath || ""));
             }
             try{
                 const result = _replace(_state, patch, basePath);
@@ -256,7 +261,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         eventPaths : eventPaths
                     });
                 }else{
-                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
+                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths, sync);
                 }
             }catch (error){
                 error.message = "error while reset ["+ message +"] caused by\n" + error.message;
@@ -275,7 +280,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                 },
                 resume : function(){
                     _paused = false;
-                    _applyCommits(_queue, _state, _eventEmitter);
+                    _applyCommits(_queue, _state, _eventEmitter, true);
                 }
             }
         }
