@@ -8,7 +8,7 @@ import Queue from './queue'
 const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
-
+let i = 0;
 function _shouldChanged(value){
     return value !== noChange;
 }
@@ -50,9 +50,10 @@ function _emitEvent(state, eventEmitter, message, patch, eventPaths, sync) {
         if(sync){
             eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
         }else{
-            _.defer(function(){
+            //TODO 비동기 어떻게할지ㅠㅠ
+            // _.defer(function(){
                 eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
-            });
+            // });
         }
 
     }).value();
@@ -197,7 +198,6 @@ function Store(storeId, initState, pathString, eventEmitter){
         },
         commit : function(message, patch, sync){
             if(!_.isString(message)) throw new TypeError("missing commit message");
-            // if(_.isUndefined(patch)) patch = {};
 
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
