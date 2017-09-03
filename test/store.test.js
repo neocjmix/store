@@ -493,7 +493,7 @@ describe("Store는", function () {
         });
     });
 
-    it("commit은 비동기적으로 처리된다", function (done) {
+    it("commit은 기본적으로 동기적으로 처리된다", function () {
         const result = [];
         const store = Store("", {});
         store
@@ -501,11 +501,34 @@ describe("Store는", function () {
             .silent()
             .then(function(a){
                 store.commit("testUpdate", {
-                        a:2
-                    });
+                    a:2
+                });
 
                 result.push(a);
-                if(result.length > 2) {
+            });
+
+        store.commit("testUpdate", {
+            a:1
+        });
+
+        result.push(0);
+        expect(result).to.deep.equal([2,1,0]);
+    });
+
+    it("callback을 비동기적으로 처리할 수도 있다", function (done) {
+        const result = [];
+        const store = Store("", {});
+        store
+            .subscribe("a")
+            .silent()
+            .async()
+            .then(function(a){
+                store.commit("testUpdate", {
+                    a:2
+                });
+
+                result.push(a);
+                if(result.length > 2){
                     expect(result).to.deep.equal([0,1,2]);
                     done();
                 }
@@ -514,6 +537,7 @@ describe("Store는", function () {
         store.commit("testUpdate", {
             a:1
         });
+
         result.push(0);
     });
 

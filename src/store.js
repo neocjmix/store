@@ -17,22 +17,44 @@ function _shouldDeleted(value){
     return value === deleted
 }
 
-function _Thenable(eventEmitter, eventName, immediateValues) {
+function _Thenable(eventEmitter, eventName, immediateValues, async) {
     return {
         then : function(callback){
             eventEmitter.on(eventName, function (message, patch) {
-                callback.apply({
-                    message: message,
-                    patch: patch
-                }, [].slice.call(arguments, 2));
+                const callbackArgs = arguments;
+                if(async){
+                    _.defer(function(){
+                        callback.apply({
+                            message: message,
+                            patch: patch
+                        }, [].slice.call(callbackArgs, 2));
+                    })
+                }else{
+                    callback.apply({
+                        message: message,
+                        patch: patch
+                    }, [].slice.call(callbackArgs, 2));
+                }
             });
 
             if (immediateValues) {
-                callback.apply({
-                    message: "subscribing [" + eventName + "]",
-                    patch: undefined //TODO
-                }, immediateValues);
+                if(async){
+                    _.defer(function(){
+                        callback.apply({
+                            message: "subscribing [" + eventName + "]",
+                            patch: undefined //TODO
+                        }, immediateValues);
+                    })
+                }else{
+                    callback.apply({
+                        message: "subscribing [" + eventName + "]",
+                        patch: undefined //TODO
+                    }, immediateValues);
+                }
             }
+        },
+        async : function(){
+            return _Thenable(eventEmitter, eventName, null, true);
         },
         silent : function(){
             return _Thenable(eventEmitter, eventName);
@@ -40,22 +62,14 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
     }
 }
 
-function _emitEvent(state, eventEmitter, message, patch, eventPaths, sync) {
+function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
     _(eventPaths).forEach(function (eventPath) {
         const eventArguments = _(eventPath.split(","))
             .map(function (path) {
                 return Navigate(state).path(path).get();
             }).value();
 
-        if(sync){
-            eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
-        }else{
-            //TODO 비동기 어떻게할지ㅠㅠ
-            // _.defer(function(){
-                eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
-            // });
-        }
-
+        eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
     }).value();
 }
 
@@ -196,12 +210,12 @@ function Store(storeId, initState, pathString, eventEmitter){
             const eventName = _registerEvents(_eventRegistry, paths);
             return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()));
         },
-        commit : function(message, patch, sync){
+        commit : function(message, patch){
             if(!_.isString(message)) throw new TypeError("missing commit message");
 
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
-                return _parentStore.commit(message, pathedPatch, sync);
+                return _parentStore.commit(message, pathedPatch);
             }
 
             try{
@@ -227,17 +241,17 @@ function Store(storeId, initState, pathString, eventEmitter){
                         eventPaths : eventPaths
                     });
                 }else{
-                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths, sync);
+                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
                 }
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                 throw error;
             }
         },
-        reset : function(message, patch, sync, basePath){
+        reset : function(message, patch, basePath){
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
-                return _parentStore.reset(message, pathedPatch, sync, _path.path(basePath || ""));
+                return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
             }
             try{
                 const result = _replace(_state, patch, basePath);
@@ -261,7 +275,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         eventPaths : eventPaths
                     });
                 }else{
-                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths, sync);
+                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
                 }
             }catch (error){
                 error.message = "error while reset ["+ message +"] caused by\n" + error.message;
