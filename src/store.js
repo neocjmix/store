@@ -85,6 +85,7 @@ function _registerEvents(eventRegistry, eventPaths) {
 function _applyPatch(state, patch) {
     const changedPaths = [];
     const newState = traverse(patch, function (newValue, currentPath, childValues) {
+        if(_.isArray(newValue)) newValue = newValue.slice();  //TODO refatoring
         const changedChildValues = _.pick(childValues, _shouldChanged);
         const deletedChildValues = _.pick(childValues, _shouldDeleted);
         const currentProperty = Navigate(state).path(currentPath);
