@@ -8,7 +8,8 @@ import Queue from './queue'
 const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
-let i = 0;
+const _callbackStack = [];
+
 function _shouldChanged(value){
     return value !== noChange;
 }
@@ -20,36 +21,31 @@ function _shouldDeleted(value){
 function _Thenable(eventEmitter, eventName, immediateValues, async) {
     return {
         then : function(callback){
-            eventEmitter.on(eventName, function (message, patch) {
+            eventEmitter.on(eventName, function () {
                 const callbackArgs = arguments;
+                const commit = _.assign({}, _.last(callbackArgs), {
+                    origin : _.last(_callbackStack)
+                });
+                callbackArgs[callbackArgs.length - 1] = commit;
+                _callbackStack.push(commit);
+
                 if(async){
                     _.defer(function(){
-                        callback.apply({
-                            message: message,
-                            patch: patch
-                        }, [].slice.call(callbackArgs, 2));
+                        callback.apply(this, callbackArgs);
                     })
                 }else{
-                    callback.apply({
-                        message: message,
-                        patch: patch
-                    }, [].slice.call(callbackArgs, 2));
+                    callback.apply(this, callbackArgs);
                 }
+                _callbackStack.pop();
             });
 
             if (immediateValues) {
                 if(async){
                     _.defer(function(){
-                        callback.apply({
-                            message: "subscribing [" + eventName + "]",
-                            patch: undefined //TODO
-                        }, immediateValues);
+                        callback.apply(this, immediateValues);
                     })
                 }else{
-                    callback.apply({
-                        message: "subscribing [" + eventName + "]",
-                        patch: undefined //TODO
-                    }, immediateValues);
+                    callback.apply(this, immediateValues);
                 }
             }
         },
@@ -69,7 +65,10 @@ function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
                 return Navigate(state).path(path).get();
             }).value();
 
-        eventEmitter.emit.apply(eventEmitter, [eventPath, message, patch].concat(eventArguments));
+        eventEmitter.emit.apply(eventEmitter, [eventPath].concat(eventArguments).concat([{
+            message : message,
+            patch : patch
+        }]));
     }).value();
 }
 
@@ -164,32 +163,8 @@ function _replace(state, patch, basePath) {
     };
 }
 
-function _applyCommits(queue, state, eventEmitter, sync){
-
-    const eventData = queue.dequeueAll();
-    const messages = _(eventData)
-        .pluck("message")
-        .uniq()
-        .value()
-        .join(",\n");
-    const paths = _(eventData)
-        .pluck("eventPaths")
-        .flatten()
-        .uniq()
-        .value();
-
-    const patch = _(paths).reduce(function(patched, path){
-        if(path !== "") Navigate(patched).path(path).set(Navigate(state).path(path).get());
-        return patched;
-    }, {});
-
-    _emitEvent(state, eventEmitter, messages, patch, paths, sync);
-}
-
 function Store(storeId, initState, pathString, eventEmitter){
     let _state = initState || {};
-    let _paused = false;
-    const _queue = Queue();
     const _path = _.isUndefined(pathString) ? "" : Path(pathString);
     const _parentStore = _.isFunction(initState.subscribe) && _.isFunction(initState.commit) ? initState : undefined;
     const _eventEmitter = eventEmitter || new EventEmitter();
@@ -209,7 +184,10 @@ function Store(storeId, initState, pathString, eventEmitter){
             }
 
             const eventName = _registerEvents(_eventRegistry, paths);
-            return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()));
+            return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()).concat({
+                message: "subscribing [" + eventName + "]",
+                patch: undefined //TODO
+            }));
         },
         commit : function(message, patch){
             if(!_.isString(message)) throw new TypeError("missing commit message");
@@ -234,16 +212,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
-                if(!eventPaths) return;
-
-                if(_paused){
-                    _queue.enqueue({
-                        message : message,
-                        eventPaths : eventPaths
-                    });
-                }else{
-                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
-                }
+                if(eventPaths) _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                 throw error;
@@ -268,16 +237,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
-                if(!eventPaths) return;
-
-                if(_paused){
-                    _queue.enqueue({
-                        message : message,
-                        eventPaths : eventPaths
-                    });
-                }else{
-                    _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
-                }
+                if(eventPaths) _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
             }catch (error){
                 error.message = "error while reset ["+ message +"] caused by\n" + error.message;
                 throw error;
@@ -286,18 +246,6 @@ function Store(storeId, initState, pathString, eventEmitter){
         path :function(pathString){
             if(_.isUndefined(pathString)) pathString = "";
             return Store(this.getId(), this, pathString, _eventEmitter);
-        },
-        pause : function(){
-            _paused = true;
-            return {
-                length : function(){
-                    return _queue.length();
-                },
-                resume : function(){
-                    _paused = false;
-                    _applyCommits(_queue, _state, _eventEmitter, true);
-                }
-            }
         }
     };
 

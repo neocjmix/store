@@ -235,7 +235,6 @@ describe("Store는", function () {
 
 
     it("update시 commit message를 전달할 수 있다", function () {
-        let done = false;
         const testData = {
             foo:{
                 bar : "baz",
@@ -250,13 +249,11 @@ describe("Store는", function () {
         store
             .subscribe("foo.bar2")
             .silent()
-            .then(function(){
-                expect(this.message).to.equal("testUpdate");
+            .then(function(foobar2, commit){
+                expect(commit.message).to.equal("testUpdate");
             });
 
         store.path("foo.bar2").commit("testUpdate", 10);
-
-        expect(done).to.equal(false);
     });
 
     it("reset을 하면 patch를 하지 않고 전체를 replace 한다.(값을 삭제할 수있다)", function () {
@@ -449,6 +446,66 @@ describe("Store는", function () {
         })
     });
 
+
+    it("commit 간의 전파 관계를 추적할 수 있다", function (done) {
+        const store = Store("", {});
+        let originalCommit;
+
+        store
+            .subscribe("a")
+            .silent()
+            .then(function(a, commit){
+                originalCommit = commit;
+                store.commit("propagated commit", {
+                    b : a
+                });
+            });
+
+        store
+            .subscribe("b")
+            .silent()
+            .then(function(b, commit){
+                expect(b).to.be.equal(1);
+                expect(commit.origin).to.be.equal(originalCommit);
+                done();
+            });
+
+        store.commit("original commit", {
+            a : 1
+        });
+    });
+
+    it("commit 간의 전파 관계를 추적할 수 없다(subscribe async)", function (done) {
+        const store = Store("", {});
+        let originalCommit;
+
+        store
+            .subscribe("a")
+            .silent()
+            .async()
+            .then(function(a, commit){
+                originalCommit = commit;
+                store.commit("propagated commit", {
+                    b : a
+                });
+            });
+
+        store
+            .subscribe("b")
+            .silent()
+            .async()
+            .then(function(b, commit){
+                expect(b).to.be.equal(1);
+                expect(commit.origin).to.be.not.equal(originalCommit);
+                done();
+            });
+
+        store.commit("original commit", {
+            a : 1
+        });
+    });
+
+
     it("하위 객체가 업데이트 되면 이에 따라 변경된 상위 객체에 대해서도 event가 발생한다", function (done) {
         const testData = {
             foo:{
@@ -539,37 +596,6 @@ describe("Store는", function () {
         });
 
         result.push(0);
-    });
-
-    it("commit을 먼저 하고 callback을 미뤗다가 묶어서 실행할 수 있다", function (done) {
-        const store = Store("", {});
-        const result = [];
-
-        store
-            .subscribe("")
-            .silent()
-            .then(function(state){
-                result.push(state);
-            });
-
-        const paused = store.pause();
-        store
-            .commit("testUpdate", {
-                a:1
-            });
-        expect(paused.length()).to.equal(1);
-
-        store
-            .commit("testUpdate", {
-                b:2
-            });
-        expect(paused.length()).to.equal(2);
-        paused.resume();
-
-        _.defer(function(){
-            expect(result).to.deep.equal([{a:1,b:2}]);
-            done();
-        });
     });
 
     describe("하위구조에 대해서 작동하는 sub-store를", function () {
