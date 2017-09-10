@@ -18,6 +18,16 @@ function _shouldDeleted(value){
     return value === deleted
 }
 
+function _arrayEquals(array1, array2) {
+    if(array1.length !== array2.length) return false;
+    for(let i=0,length = array1.length; i < length; i++){
+        if(array1[i] !== array2[i]){
+            return false;
+        }
+    }
+    return true;
+}
+
 function _Thenable(eventEmitter, eventName, immediateValues, async) {
     return {
         then : function(callback){
@@ -84,21 +94,25 @@ function _registerEvents(eventRegistry, eventPaths) {
 function _applyPatch(state, patch) {
     const changedPaths = [];
     const newState = traverse(patch, function (newValue, currentPath, childValues) {
-        if(_.isArray(newValue)) newValue = newValue.slice();  //TODO refatoring
         const changedChildValues = _.pick(childValues, _shouldChanged);
         const deletedChildValues = _.pick(childValues, _shouldDeleted);
         const currentProperty = Navigate(state).path(currentPath);
         const oldValue = currentProperty.get();
 
         //TODO 조건문 정리
-        if (oldValue === newValue) return noChange;
+        if(_.isArray(newValue)) {
+            newValue = newValue.slice();
+            if (_.isArray(oldValue) && _arrayEquals(oldValue, newValue)) return noChange;
+        }else{
+            if (oldValue === newValue) return noChange;
+        }
 
         if (!_.isUndefined(oldValue) && _.isUndefined(newValue)) {
             changedPaths.push(currentPath);
             return deleted;
         }
 
-        if (_.isPlainObject(newValue) && !_.isEmpty(newValue) && _.isEmpty(changedChildValues)) return noChange;
+        if (_.isPlainObject(newValue) && !_.isEmpty(newValue) && _.isEmpty(changedChildValues) && _.isEmpty(deletedChildValues)) return noChange;
 
         //기존 값이 객체일때는 childValues를 적용
         if (_.isPlainObject(oldValue) && (!_.isEmpty(changedChildValues) || !_.isEmpty(deletedChildValues))){
@@ -125,26 +139,38 @@ function _replace(state, patch, basePath) {
     const changedPaths = [];
 
     const newState = traverse(state, function(oldValue, currentPath, childValues){
-        if(basePath && !basePath.contains(currentPath) && !currentPath.contains(basePath) && currentPath+"" !== basePath+"") {
-            return noChange;
-        }
+        if(basePath &&
+            !basePath.contains(currentPath) &&
+            !currentPath.contains(basePath) &&
+            !currentPath.equals(basePath)) return noChange;
+
 
         const changedChildValues = _.pick(childValues, _shouldChanged);
         const deletedChildValues = _.pick(childValues, _shouldDeleted);
         let newValue = Navigate(patch).path(currentPath).get();
 
-        if(oldValue === newValue) return noChange;
-        if(_.isUndefined(newValue)){
+        if(_.isArray(newValue)) {
+            newValue = newValue.slice();
+            if (_arrayEquals(oldValue, newValue)) return noChange;
+        }else if (oldValue === newValue) {
+            return noChange;
+        }
+
+        if(_.isUndefined(newValue) && !_.isUndefined(oldValue)){
             changedPaths.push(currentPath);
             return deleted;
         }
 
         if (_.isPlainObject(oldValue) && _.isPlainObject(newValue)){
-            newValue = _.assign({}, oldValue, newValue);
+            const addedChildValues = _.pick(newValue, function(value, key){
+                return !_.isUndefined(value) && _.isUndefined(oldValue[key]);
+            });
 
-            if(!_.isEmpty(changedChildValues)){
-                newValue = _.assign(newValue, changedChildValues);
+            if (_.isEmpty(changedChildValues) && _.isEmpty(deletedChildValues) && _.isEmpty(addedChildValues)){
+                return noChange;
             }
+
+            newValue = _.assign({}, oldValue, changedChildValues, addedChildValues);
 
             if(!_.isEmpty(deletedChildValues)){
                 _.forEach(_.keys(deletedChildValues), function(key){
@@ -153,9 +179,12 @@ function _replace(state, patch, basePath) {
             }
         }
 
+        if (_.isArray(newValue)) newValue = newValue.slice();
+
         changedPaths.push(currentPath);
         return newValue;
     }, true);
+
 
     return {
         changedPaths :  changedPaths,
@@ -225,7 +254,9 @@ function Store(storeId, initState, pathString, eventEmitter){
             }
             try{
                 const result = _replace(_state, patch, basePath);
-                if(_shouldChanged(result.state)) _state = result.state;
+                if(_shouldChanged(result.state)) {
+                    _state = result.state;
+                }
                 const eventPaths = _(result.changedPaths)
                     .filter(function(changedPath) {
                         return _eventRegistry[changedPath];

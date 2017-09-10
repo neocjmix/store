@@ -446,6 +446,50 @@ describe("Store는", function () {
         })
     });
 
+    it("commit한 object가 변경되어도 state가 변하지 않는다(복사본이다)", function () {
+        const result = [];
+        const store = Store("", {});
+        store
+            .subscribe("")
+            .then(function(state){
+                result.push(state);
+            });
+
+        let temp = {
+            a:1
+        };
+        store.commit("testUpdate", temp);
+        temp.a = 2;
+        store.commit("testUpdate", temp);
+        temp.b = 4;
+        store.commit("testUpdate", temp);
+        temp.a = [];
+        temp.c = "a";
+        store.commit("testUpdate", temp);
+        store.commit("testUpdate", temp);
+        store.commit("testUpdate", temp);
+        temp.a.push(1);
+        store.commit("testUpdate", temp);
+        temp.b = undefined;
+        temp.c = 1;
+        store.reset("testUpdate", temp);
+        store.reset("testUpdate", temp);
+        delete temp.a;
+        store.reset("testUpdate", temp);
+        store.reset("testUpdate", temp);
+        store.reset("testUpdate", temp);
+        expect(result).to.be.deep.equal([
+            {},
+            {a:1},
+            {a:2},
+            {a:2,b:4},
+            {a:[],b:4,c:"a"},
+            {a:[1],b:4,c:"a"},
+            {a:[1],c:1},
+            {c:1}
+        ])
+    });
+
 
     it("commit 간의 전파 관계를 추적할 수 있다", function (done) {
         const store = Store("", {});

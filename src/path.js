@@ -60,6 +60,9 @@ function path(fullPath, parent){
                 if(childPath.toString() === this.toString()) return true;
             }
             return false;
+        },
+        equals : function(path){
+            return this.toString() === path + "";
         }
     }
 }
