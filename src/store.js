@@ -248,6 +248,7 @@ function Store(storeId, initState, pathString, eventEmitter){
             }
         },
         reset : function(message, patch, basePath){
+            if(!_.isString(message)) throw new TypeError("missing reset message");
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
                 return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
