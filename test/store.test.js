@@ -130,6 +130,51 @@ describe("Store는", function () {
         })
     });
 
+    it("array에 새로운 값을 추가 할 수 있다", function () {
+        const store = Store("", {
+            a: []
+        });
+
+        store
+            .subscribe("a")
+            .silent()
+            .then(a => {
+                expect(a).to.deep.equal([1]);
+            });
+
+        store.path("a[0]").commit("test commit", 1);
+    });
+
+    it("array element object에 새로운 patch를 커밋할 수 있다", function () {
+        const store = Store("", {
+            a: [{foo:"foo"}]
+        });
+
+        store
+            .subscribe("a")
+            .silent()
+            .then(a => {
+                expect(a).to.deep.equal([{foo:"foo",bar:"bar"}]);
+            });
+
+        store.path("a[0]").commit("test commit", {bar:"bar"});
+    });
+
+    it("array element object를 reset할수 있다", function () {
+        const store = Store("", {
+            a: [{foo:"foo"}]
+        });
+
+        store
+            .subscribe("a")
+            .silent()
+            .then(a => {
+                expect(a).to.deep.equal([{bar:"bar"}]);
+            });
+
+        store.path("a[0]").reset("test commit", {bar:"bar"});
+    });
+
     it("여러개의 값을 subscribe하더라도 update가 한번 이루어지면 callback도 한번 실행된다", function (done) {
         const testData = {
             foo:{

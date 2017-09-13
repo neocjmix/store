@@ -114,14 +114,22 @@ function _applyPatch(state, patch) {
 
         if (_.isPlainObject(newValue) && !_.isEmpty(newValue) && _.isEmpty(changedChildValues) && _.isEmpty(deletedChildValues)) return noChange;
 
-        //기존 값이 객체일때는 childValues를 적용
-        if (_.isPlainObject(oldValue) && (!_.isEmpty(changedChildValues) || !_.isEmpty(deletedChildValues))){
-            //추가
-            newValue = _.assign({}, oldValue, changedChildValues);
-            //삭제
-            _.forEach(_.keys(deletedChildValues), function(key){
-                delete newValue[key]
-            })
+        //기존 값이 객체/배열일때는 childValues를 적용
+        if (!_.isEmpty(changedChildValues) || !_.isEmpty(deletedChildValues)){
+            if(_.isPlainObject(oldValue)){
+                //추가/변경
+                newValue = _.assign({}, oldValue, changedChildValues);
+                //삭제
+                _.forEach(_.keys(deletedChildValues), function(key){
+                    delete newValue[key]
+                })
+            }else if(_.isArray(oldValue)){
+                newValue = [].slice.apply(oldValue);
+                _.forEach(childValues, function(value, key){
+                    newValue[key] = value;
+                });
+            }
+
         }
 
         //이벤트 발생시킬 path 추가
@@ -179,7 +187,14 @@ function _replace(state, patch, basePath) {
             }
         }
 
-        if (_.isArray(newValue)) newValue = newValue.slice();
+        if(_.isArray(oldValue) && childValues){
+            newValue = [].slice.apply(oldValue);
+            _.forEach(childValues, function(value, key){
+                newValue[key] = value;
+            });
+        }else if (_.isArray(newValue)){
+            newValue = newValue.slice();
+        }
 
         changedPaths.push(currentPath);
         return newValue;
