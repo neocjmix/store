@@ -53,7 +53,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo.bar")
-            .silent()
+            .silently()
             .then(bar => {
                 expect(bar).to.equal(1000);
                 done();
@@ -76,7 +76,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo.bar", "foo")
-            .silent()
+            .silently()
             .then((bar, foo) => {
                 expect(bar).to.equal(undefined);
                 expect(foo).to.equal(false);
@@ -98,7 +98,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo.bar", "foo")
-            .silent()
+            .silently()
             .then((bar, foo) => {
                 expect(bar).to.equal(undefined);
                 expect(foo).to.equal(undefined);
@@ -115,7 +115,7 @@ describe("Store는", function () {
 
         singleSourceOfTruth
             .subscribe("foo.bar3.baz")
-            .silent()
+            .silently()
             .then(baz => {
                 expect(baz).to.equal("good");
                 done();
@@ -137,7 +137,7 @@ describe("Store는", function () {
 
         store
             .subscribe("a")
-            .silent()
+            .silently()
             .then(a => {
                 expect(a).to.deep.equal([1]);
             });
@@ -152,7 +152,7 @@ describe("Store는", function () {
 
         store
             .subscribe("a")
-            .silent()
+            .silently()
             .then(a => {
                 expect(a).to.deep.equal([{foo:"foo",bar:"bar"}]);
             });
@@ -167,7 +167,7 @@ describe("Store는", function () {
 
         store
             .subscribe("a")
-            .silent()
+            .silently()
             .then(a => {
                 expect(a).to.deep.equal([{bar:"bar"}]);
             });
@@ -190,7 +190,7 @@ describe("Store는", function () {
 
         singleSourceOfTruth
             .subscribe("foo.bar", "foo.bar2", "foo.bar3.baz", "foo.bar4.bam.boom")
-            .silent()
+            .silently()
             .then((bar, bar2, baz, boom) => {
                 expect(bar).to.equal(1000);
                 expect(bar2).to.equal(2000);
@@ -247,22 +247,22 @@ describe("Store는", function () {
 
         store
             .subscribe("")
-            .silent()
+            .silently()
             .then(() => done++);
 
         store
             .subscribe("foo")
-            .silent()
+            .silently()
             .then(() => done++);
 
         store
             .subscribe("foo.bar")
-            .silent()
+            .silently()
             .then(() => done++);
 
         store
             .subscribe("foo.bar3.baz")
-            .silent()
+            .silently()
             .then(() => done++);
 
         store.commit("", {
@@ -293,7 +293,7 @@ describe("Store는", function () {
         const store = Store("", testData);
         store
             .subscribe("foo.bar2")
-            .silent()
+            .silently()
             .then(function(foobar2, commit){
                 expect(commit.message).to.equal("testUpdate");
             });
@@ -317,7 +317,7 @@ describe("Store는", function () {
         const pr1 = new Promise(function(resolve, reject){
             store
                 .subscribe("")
-                .silent()
+                .silently()
                 .then(function(state){
                     expect(state).to.deep.equal({
                         foo:{
@@ -332,7 +332,7 @@ describe("Store는", function () {
         const pr2 = new Promise(function(resolve, reject){
             store
                 .subscribe("foo.bar3")
-                .silent()
+                .silently()
                 .then(function(bar3){
                     expect(bar3).to.be.undefined;
                     resolve();
@@ -342,7 +342,7 @@ describe("Store는", function () {
         const pr4 = new Promise(function(resolve, reject){
             store
                 .subscribe("foo.bar3.baz")
-                .silent()
+                .silently()
                 .then(function(baz){
                     expect(baz).to.be.undefined;
                     resolve();
@@ -352,7 +352,7 @@ describe("Store는", function () {
         const pr5 = new Promise(function(resolve, reject){
             store
                 .subscribe("foo.bar2")
-                .silent()
+                .silently()
                 .then(function(bar2){
                     expect(bar2).to.equal(0);
                     resolve();
@@ -364,7 +364,7 @@ describe("Store는", function () {
             resolve2 = resolve;
             store
                 .subscribe("foo.bar")
-                .silent()
+                .silently()
                 .then(function (bar) {
                     reject();
                 });
@@ -542,7 +542,7 @@ describe("Store는", function () {
 
         store
             .subscribe("a")
-            .silent()
+            .silently()
             .then(function(a, commit){
                 originalCommit = commit;
                 store.commit("propagated commit", {
@@ -552,7 +552,7 @@ describe("Store는", function () {
 
         store
             .subscribe("b")
-            .silent()
+            .silently()
             .then(function(b, commit){
                 expect(b).to.be.equal(1);
                 expect(commit.origin).to.be.equal(originalCommit);
@@ -563,37 +563,6 @@ describe("Store는", function () {
             a : 1
         });
     });
-
-    it("commit 간의 전파 관계를 추적할 수 없다(subscribe async)", function (done) {
-        const store = Store("", {});
-        let originalCommit;
-
-        store
-            .subscribe("a")
-            .silent()
-            .async()
-            .then(function(a, commit){
-                originalCommit = commit;
-                store.commit("propagated commit", {
-                    b : a
-                });
-            });
-
-        store
-            .subscribe("b")
-            .silent()
-            .async()
-            .then(function(b, commit){
-                expect(b).to.be.equal(1);
-                expect(commit.origin).to.be.not.equal(originalCommit);
-                done();
-            });
-
-        store.commit("original commit", {
-            a : 1
-        });
-    });
-
 
     it("하위 객체가 업데이트 되면 이에 따라 변경된 상위 객체에 대해서도 event가 발생한다", function (done) {
         const testData = {
@@ -613,7 +582,7 @@ describe("Store는", function () {
 
         store
             .subscribe("foo")
-            .silent()
+            .silently()
             .then(function(foo){
                 expect(foo).to.deep.equal({
                     bar : "baz",
@@ -644,7 +613,7 @@ describe("Store는", function () {
         const store = Store("", {});
         store
             .subscribe("a")
-            .silent()
+            .silently()
             .then(function(a){
                 store.commit("testUpdate", {
                     a:2
@@ -659,32 +628,6 @@ describe("Store는", function () {
 
         result.push(0);
         expect(result).to.deep.equal([2,1,0]);
-    });
-
-    it("callback을 비동기적으로 처리할 수도 있다", function (done) {
-        const result = [];
-        const store = Store("", {});
-        store
-            .subscribe("a")
-            .silent()
-            .async()
-            .then(function(a){
-                store.commit("testUpdate", {
-                    a:2
-                });
-
-                result.push(a);
-                if(result.length > 2){
-                    expect(result).to.deep.equal([0,1,2]);
-                    done();
-                }
-            });
-
-        store.commit("testUpdate", {
-            a:1
-        });
-
-        result.push(0);
     });
 
     describe("하위구조에 대해서 작동하는 sub-store를", function () {
@@ -721,7 +664,7 @@ describe("Store는", function () {
 
             subStore
                 .subscribe("a", "c", "d")
-                .silent()
+                .silently()
                 .then(function(a, c, d){
                     expect(a).to.equal(3);
                     expect(c).to.deep.equal([10,20,33,40]);
@@ -756,7 +699,7 @@ describe("Store는", function () {
             const subUpdate = new Promise(function(resolve, reject) {
                 subStore
                     .subscribe("a", "c", "d")
-                    .silent()
+                    .silently()
                     .then(function(a, c, d){
                         expect(a).to.equal(6);
                         expect(c).to.deep.equal([100,34,234,56]);
@@ -768,7 +711,7 @@ describe("Store는", function () {
             const mainUpdate = new Promise(function(resolve, reject) {
                 store
                     .subscribe("")
-                    .silent()
+                    .silently()
                     .then(function (root) {
                         expect(root).to.deep.equal({
                             foo: {
@@ -790,7 +733,7 @@ describe("Store는", function () {
             const mainUpdate2 = new Promise(function(resolve, reject) {
                 store
                     .subscribe("foo")
-                    .silent()
+                    .silently()
                     .then(function (root) {
                         expect(root).to.deep.equal({
                             bar: "baz",
@@ -834,7 +777,7 @@ describe("Store는", function () {
             store
                 .path("foo")
                 .subscribe("bar2.baz.a", "bar2.baz.c", "bar2.baz.d")
-                .silent()
+                .silently()
                 .then(function(a, c, d){
                     expect(a).to.equal(3);
                     expect(c).to.deep.equal([10,20,33,40]);

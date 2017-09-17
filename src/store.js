@@ -28,7 +28,7 @@ function _arrayEquals(array1, array2) {
     return true;
 }
 
-function _Thenable(eventEmitter, eventName, immediateValues, async) {
+function _Thenable(eventEmitter, eventName, immediateValues) {
     return {
         then : function(callback){
             eventEmitter.on(eventName, function () {
@@ -38,31 +38,15 @@ function _Thenable(eventEmitter, eventName, immediateValues, async) {
                 });
                 callbackArgs[callbackArgs.length - 1] = commit;
                 _callbackStack.push(commit);
-
-                if(async){
-                    _.defer(function(){
-                        callback.apply(this, callbackArgs);
-                    })
-                }else{
-                    callback.apply(this, callbackArgs);
-                }
+                callback.apply(this, callbackArgs);
                 _callbackStack.pop();
             });
 
             if (immediateValues) {
-                if(async){
-                    _.defer(function(){
-                        callback.apply(this, immediateValues);
-                    })
-                }else{
-                    callback.apply(this, immediateValues);
-                }
+                callback.apply(this, immediateValues);
             }
         },
-        async : function(){
-            return _Thenable(eventEmitter, eventName, null, true);
-        },
-        silent : function(){
+        silently : function(){
             return _Thenable(eventEmitter, eventName);
         }
     }
@@ -70,10 +54,9 @@ function _Thenable(eventEmitter, eventName, immediateValues, async) {
 
 function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
     _(eventPaths).forEach(function (eventPath) {
-        const eventArguments = _(eventPath.split(","))
-            .map(function (path) {
-                return Navigate(state).path(path).get();
-            }).value();
+        const eventArguments = _.map(eventPath.split(","), function (path) {
+            return Navigate(state).path(path).get();
+        });
 
         eventEmitter.emit.apply(eventEmitter, [eventPath].concat(eventArguments).concat([{
             message : message,
