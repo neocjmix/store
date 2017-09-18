@@ -147,7 +147,7 @@ function _replace(state, patch, basePath) {
 
         if(_.isArray(newValue)) {
             newValue = newValue.slice();
-            if (_arrayEquals(oldValue, newValue)) return noChange;
+            if (_.isArray(oldValue) && _arrayEquals(oldValue, newValue)) return noChange;
         }else if (oldValue === newValue) {
             return noChange;
         }
