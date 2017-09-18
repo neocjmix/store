@@ -4,7 +4,7 @@ import traverse from "../src/traverse";
 
 const expect = chai.expect;
 
-describe("Traverse는", function () {
+describe("Traverse는 object를 순회할때", function () {
     const testData = {
         a: {
             aa: {
@@ -22,95 +22,115 @@ describe("Traverse는", function () {
         }
     };
 
-    describe("object를 순회할때", function () {
-        it("callback의 첫번째 파라미터로 그 값을 넘긴다", function () {
-            const results = [];
+    it("callback의 첫번째 파라미터로 그 값을 넘긴다", function () {
+        const results = [];
 
-            traverse(testData, (obj) => {
-                results.push(obj);
-            });
-
-            expect(results).to.deep.equal([
-                "aaa", "aab",
-                testData.a.aa,
-                "aba", "abb",
-                testData.a.ab,
-                testData.a.ac,
-                testData.a,
-                "ba",
-                testData.b,
-                testData
-            ]);
+        traverse(testData, (obj) => {
+            results.push(obj);
         });
 
-        it("callback의 두번째 파라미터로 path를 넘긴다", function () {
-            const results = [];
+        expect(results).to.deep.equal([
+            "aaa", "aab",
+            testData.a.aa,
+            "aba", "abb",
+            testData.a.ab,
+            testData.a.ac,
+            testData.a,
+            "ba",
+            testData.b,
+            testData
+        ]);
+    });
 
-            traverse(testData, (obj, path) => {
-                results.push(path.toString());
-            });
+    it("callback의 두번째 파라미터로 path를 넘긴다", function () {
+        const results = [];
 
-            expect(results).to.deep.equal([
-                "a.aa.aaa",
-                "a.aa.aab",
-                "a.aa",
-                "a.ab.aba",
-                "a.ab.abb",
-                "a.ab",
-                "a.ac",
-                "a",
-                "b.ba",
-                "b",
-                ""
-            ]);
+        traverse(testData, (obj, path) => {
+            results.push(path.toString());
         });
 
-        it("array 내부도 순회할수 있다(값)", function () {
-            const results = [];
+        expect(results).to.deep.equal([
+            "a.aa.aaa",
+            "a.aa.aab",
+            "a.aa",
+            "a.ab.aba",
+            "a.ab.abb",
+            "a.ab",
+            "a.ac",
+            "a",
+            "b.ba",
+            "b",
+            ""
+        ]);
+    });
 
-            traverse(testData, (obj) => {
-                results.push(obj);
-            }, true);
+    it("preorder로 순회할 수 있다", function () {
+        const results = [];
 
-            expect(results).to.deep.equal([
-                "aaa", "aab",
-                testData.a.aa,
-                "aba", "abb",
-                testData.a.ab,
-                0, 10, 20, testData.a.ac[1], "2",
-                testData.a.ac,
-                testData.a,
-                "ba",
-                testData.b,
-                testData
-            ]);
-        });
+        traverse(testData, (obj, path) => {
+            results.push(path.toString());
+        }, {preOrder : true});
 
-        it("array 내부도 순회할수 있다(path)", function () {
-            const results = [];
+        expect(results).to.deep.equal([
+            "",
+            "a",
+            "a.aa",
+            "a.aa.aaa",
+            "a.aa.aab",
+            "a.ab",
+            "a.ab.aba",
+            "a.ab.abb",
+            "a.ac",
+            "b",
+            "b.ba"
+        ]);
+    });
 
-            traverse(testData, (obj, path) => {
-                results.push(path.toString());
-            }, true);
+    it("array 내부도 순회할수 있다(값)", function () {
+        const results = [];
 
-            expect(results).to.deep.equal([
-                "a.aa.aaa",
-                "a.aa.aab",
-                "a.aa",
-                "a.ab.aba",
-                "a.ab.abb",
-                "a.ab",
-                "a.ac[0]",
-                "a.ac[1].ac1a",
-                "a.ac[1].ac1b",
-                "a.ac[1]",
-                "a.ac[2]",
-                "a.ac",
-                "a",
-                "b.ba",
-                "b",
-                ""
-            ]);
-        });
+        traverse(testData, (obj) => {
+            results.push(obj);
+        }, { array : true });
+
+        expect(results).to.deep.equal([
+            "aaa", "aab",
+            testData.a.aa,
+            "aba", "abb",
+            testData.a.ab,
+            0, 10, 20, testData.a.ac[1], "2",
+            testData.a.ac,
+            testData.a,
+            "ba",
+            testData.b,
+            testData
+        ]);
+    });
+
+    it("array 내부도 순회할수 있다(path)", function () {
+        const results = [];
+
+        traverse(testData, (obj, path) => {
+            results.push(path.toString());
+        }, { array : true });
+
+        expect(results).to.deep.equal([
+            "a.aa.aaa",
+            "a.aa.aab",
+            "a.aa",
+            "a.ab.aba",
+            "a.ab.abb",
+            "a.ab",
+            "a.ac[0]",
+            "a.ac[1].ac1a",
+            "a.ac[1].ac1b",
+            "a.ac[1]",
+            "a.ac[2]",
+            "a.ac",
+            "a",
+            "b.ba",
+            "b",
+            ""
+        ]);
     });
 });

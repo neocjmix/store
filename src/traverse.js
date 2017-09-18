@@ -1,23 +1,31 @@
 import _ from 'lodash';
 import Path from './path';
 
-function traverse(obj, postOrder, traverseArray, path){
+function traverse(obj, callback, options, path){
     path = path || Path("");
-    let mapValues;
+    options = _.assign({
+        array : false,
+        preOrder : false
+    }, options);
 
-    if(traverseArray && _.isArray(obj)){
+
+
+    if(options.preOrder) callback(obj, path);
+
+    let mapValues;
+    if(options.array && _.isArray(obj)){
         mapValues = _.map(obj, function(value, key){
-            return traverse(value, postOrder, traverseArray, path.path(key))
+            return traverse(value, callback, options, path.path(key))
         });
     }
 
     if(_.isPlainObject(obj)) {
         mapValues = _.mapValues(obj, function (value, key) {
-            return traverse(value, postOrder, traverseArray, path.path(key));
+            return traverse(value, callback, options, path.path(key));
         });
     }
 
-    return postOrder(obj, path, mapValues);
+    if(!options.preOrder) return callback(obj, path, mapValues);
 }
 
 export default traverse

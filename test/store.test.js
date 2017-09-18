@@ -538,13 +538,13 @@ describe("Store는", function () {
 
     it("commit 간의 전파 관계를 추적할 수 있다", function (done) {
         const store = Store("", {});
-        let originalCommit;
+        let causeCommit;
 
         store
             .subscribe("a")
             .silently()
             .then(function(a, commit){
-                originalCommit = commit;
+                causeCommit = commit;
                 store.commit("propagated commit", {
                     b : a
                 });
@@ -555,11 +555,11 @@ describe("Store는", function () {
             .silently()
             .then(function(b, commit){
                 expect(b).to.be.equal(1);
-                expect(commit.origin).to.be.equal(originalCommit);
+                expect(commit.cause).to.be.equal(causeCommit);
                 done();
             });
 
-        store.commit("original commit", {
+        store.commit("cause commit", {
             a : 1
         });
     });
@@ -630,7 +630,7 @@ describe("Store는", function () {
         expect(result).to.deep.equal([2,1,0]);
     });
 
-    describe("하위구조에 대해서 작동하는 sub-store를", function () {
+    describe("sub-store", function () {
         const testData = {
             foo:{
                 bar : "baz",

@@ -33,10 +33,8 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
         then : function(callback){
             eventEmitter.on(eventName, function () {
                 const callbackArgs = arguments;
-                const commit = _.assign({}, _.last(callbackArgs), {
-                    origin : _.last(_callbackStack)
-                });
-                callbackArgs[callbackArgs.length - 1] = commit;
+                const commit = _.last(callbackArgs);
+                commit.cause = _.last(_callbackStack);
                 _callbackStack.push(commit);
                 callback.apply(this, callbackArgs);
                 _callbackStack.pop();
@@ -52,16 +50,23 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
     }
 }
 
-function _emitEvent(state, eventEmitter, message, patch, eventPaths) {
+function _emitEvent(state, eventEmitter, mode, message, patch, eventPaths) {
+    const commit = {
+        message : message,
+        patch : patch,
+        mode : mode,
+        cause : undefined
+    };
+
     _(eventPaths).forEach(function (eventPath) {
         const eventArguments = _.map(eventPath.split(","), function (path) {
             return Navigate(state).path(path).get();
         });
 
-        eventEmitter.emit.apply(eventEmitter, [eventPath].concat(eventArguments).concat([{
-            message : message,
-            patch : patch
-        }]));
+        eventEmitter.emit.apply(eventEmitter,
+            [eventPath]
+            .concat(eventArguments)
+            .concat([commit]));
     }).value();
 }
 
@@ -181,7 +186,7 @@ function _replace(state, patch, basePath) {
 
         changedPaths.push(currentPath);
         return newValue;
-    }, true);
+    }, { array : true });
 
 
     return {
@@ -239,7 +244,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
-                if(eventPaths) _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
+                if(eventPaths) _emitEvent(_state, _eventEmitter, "commit", message, patch, eventPaths);
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                 throw error;
@@ -267,7 +272,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
-                if(eventPaths) _emitEvent(_state, _eventEmitter, message, patch, eventPaths);
+                if(eventPaths) _emitEvent(_state, _eventEmitter, "commit", message, patch, eventPaths);
             }catch (error){
                 error.message = "error while reset ["+ message +"] caused by\n" + error.message;
                 throw error;
