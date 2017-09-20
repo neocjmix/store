@@ -110,6 +110,47 @@ describe("Store는", function () {
         })
     });
 
+    it("undefined 로 property를 삭제할때 삭제된 노드들에 대해서 이벤트가 발생한다", function () {
+        const store = Store("", {
+            foo:{
+                bar : "baz",
+                bar2 : {
+                    qux : {
+                        mux: 1
+                    }
+                }
+            }
+        });
+
+        const prms1 = new Promise(function(resolve, reject){
+            store
+                .subscribe("foo.bar", "foo.bar2", "foo")
+                .silently()
+                .then((bar, bar2, foo) => {
+                    expect(bar).to.equal(undefined);
+                    expect(bar2).to.equal(undefined);
+                    expect(foo).to.equal(undefined);
+                    resolve();
+                });
+        });
+
+        const prms2 = new Promise(function(resolve, reject){
+            store
+                .subscribe("foo.bar2.qux.mux")
+                .silently()
+                .then(mux => {
+                    expect(mux).to.equal(undefined);
+                    resolve();
+                });
+        });
+
+        store.commit("", {
+            foo : undefined
+        });
+
+        return Promise.all([prms1, prms2]);
+    });
+
     it("update하며 새로운 값을 추가할 수 있다", function (done) {
         const singleSourceOfTruth = Store("", testData);
 
@@ -210,25 +251,6 @@ describe("Store는", function () {
                 }
             }
         });
-    });
-
-    it("event 발생을 안한채로", function () {
-        const store = Store("", { foo : 1});
-        let done = false;
-
-        store
-            .subscribe("foo")
-            .then(foo => {
-                store.commit("", {
-                    bar : 1
-                });
-            });
-
-        store
-            .subscribe("bar")
-            .then(function(bar){
-                expect(bar).to.be.equal(1);
-            });
     });
 
     it("update하는 값이 기존 값과 같으면 callback을 실행하지 않는다", function () {

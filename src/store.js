@@ -35,6 +35,8 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
                 const callbackArgs = arguments;
                 const commit = _.last(callbackArgs);
                 commit.cause = _.last(_callbackStack);
+                commit.callbacks = commit.callbacks || [];
+                commit.callbacks.push(callback);
                 _callbackStack.push(commit);
                 callback.apply(this, callbackArgs);
                 _callbackStack.pop();
@@ -109,6 +111,12 @@ function _applyPatch(state, patch) {
                 newValue = _.assign({}, oldValue, changedChildValues);
                 //삭제
                 _.forEach(_.keys(deletedChildValues), function(key){
+                    const objToDelete = currentProperty.path(key).get();
+                    if(_.isPlainObject(objToDelete)){
+                        traverse(objToDelete, function(obj, localPath){
+                            changedPaths.push(currentPath.path(key).path(localPath));
+                        })
+                    }
                     delete newValue[key]
                 })
             }else if(_.isArray(oldValue)){
@@ -221,7 +229,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                 patch: undefined //TODO
             }));
         },
-        commit : function(message, patch){
+        commit : function(message, patch, slient){
             if(!_.isString(message)) {
                 throw new TypeError("missing commit message");
             }
@@ -246,7 +254,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                         return _.union(eventPaths1, eventPaths2);
                     });
 
-                if(eventPaths) _emitEvent(_state, _eventEmitter, "commit", message, patch, eventPaths);
+                if(eventPaths && !slient) _emitEvent(_state, _eventEmitter, "commit", message, patch, eventPaths);
             }catch (error){
                 error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                 throw error;
