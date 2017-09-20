@@ -222,7 +222,9 @@ function Store(storeId, initState, pathString, eventEmitter){
             }));
         },
         commit : function(message, patch){
-            if(!_.isString(message)) throw new TypeError("missing commit message");
+            if(!_.isString(message)) {
+                throw new TypeError("missing commit message");
+            }
 
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
@@ -288,6 +290,18 @@ function Store(storeId, initState, pathString, eventEmitter){
                 return _parentStore.getPath(returnPath);
             }
             return returnPath;
+        },
+        async :  {
+            commit : function(){
+                _.defer(function(args){
+                    instance.commit.apply(instance,args);
+                }, arguments);
+            },
+            reset : function(){
+                _.defer(function(args){
+                    instance.reset.apply(instance,args);
+                }, arguments);
+            }
         }
     };
 
