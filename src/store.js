@@ -281,6 +281,13 @@ function Store(storeId, initState, pathString, eventEmitter){
         path :function(pathString){
             if(_.isUndefined(pathString)) pathString = "";
             return Store(this.getId(), this, pathString, _eventEmitter);
+        },
+        getPath : function(path){
+            const returnPath = path ? Path(_path).path(path) : Path(_path);
+            if(this.isSubStore()){
+                return _parentStore.getPath(returnPath);
+            }
+            return returnPath;
         }
     };
 
