@@ -35,8 +35,6 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
                 const callbackArgs = arguments;
                 const commit = _.last(callbackArgs);
                 commit.cause = _.last(_callbackStack);
-                commit.callbacks = commit.callbacks || [];
-                commit.callbacks.push(callback);
                 _callbackStack.push(commit);
                 callback.apply(this, callbackArgs);
                 _callbackStack.pop();
