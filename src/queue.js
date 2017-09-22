@@ -1,5 +1,6 @@
 import _ from 'lodash'
-export default function(initialQueue){
+
+const Queue = function(initialQueue){
     let _queue = initialQueue || [];
     let _index = 0;
 
@@ -41,4 +42,5 @@ export default function(initialQueue){
             return _queue.length - _index;
         }
     }
-}
+};
+export default Queue

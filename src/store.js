@@ -29,23 +29,34 @@ function _arrayEquals(array1, array2) {
 }
 
 function _Thenable(eventEmitter, eventName, immediateValues) {
+    let isMuted;
     return {
         then : function(callback){
             eventEmitter.on(eventName, function () {
+                if (isMuted) return;
                 const callbackArgs = arguments;
                 const commit = _.last(callbackArgs);
                 commit.cause = _.last(_callbackStack);
-                _callbackStack.push(commit);
-                callback.apply(this, callbackArgs);
-                _callbackStack.pop();
+
+                //TODO
+                _.defer(function(){
+                    _callbackStack.push(commit);
+                    callback.apply(this, callbackArgs);
+                    _callbackStack.pop();
+                });
+
             });
 
             if (immediateValues) {
                 callback.apply(this, immediateValues);
             }
+            return this;
         },
         silently : function(){
             return _Thenable(eventEmitter, eventName);
+        },
+        mute : function(){
+            isMuted = true;
         }
     }
 }
@@ -58,16 +69,13 @@ function _emitEvent(state, eventEmitter, mode, message, patch, eventPaths) {
         cause : undefined
     };
 
-    _(eventPaths).forEach(function (eventPath) {
+    _.forEach(eventPaths, function (eventPath) {
         const eventArguments = _.map(eventPath.split(","), function (path) {
             return Navigate(state).path(path).get();
         });
 
-        eventEmitter.emit.apply(eventEmitter,
-            [eventPath]
-            .concat(eventArguments)
-            .concat([commit]));
-    }).value();
+        eventEmitter.emit.apply(eventEmitter, [eventPath].concat(eventArguments).concat([commit]));
+    });
 }
 
 function _registerEvents(eventRegistry, eventPaths) {
@@ -140,54 +148,50 @@ function _applyPatch(state, patch) {
 function _replace(state, patch, basePath) {
     const changedPaths = [];
 
-    const newState = traverse(state, function(oldValue, currentPath, childValues){
-        if(basePath &&
-            !basePath.contains(currentPath) &&
-            !currentPath.contains(basePath) &&
-            !currentPath.equals(basePath)) return noChange;
-
-
-        const changedChildValues = _.pick(childValues, _shouldChanged);
-        const deletedChildValues = _.pick(childValues, _shouldDeleted);
+    let isRelatedWithBasePath = function (currentPath) {
+        return basePath.contains(currentPath) ||
+            currentPath.contains(basePath) ||
+            currentPath.equals(basePath);
+    };
+    const newState = traverse(state, function(oldValue, currentPath, childFields){
         let newValue = Navigate(patch).path(currentPath).get();
+        const changedfields = _.pick(childFields, _shouldChanged);
+        const deletedFields = _.pick(childFields, _shouldDeleted);
 
-        if(_.isArray(newValue)) {
-            newValue = newValue.slice();
-            if (_.isArray(oldValue) && _arrayEquals(oldValue, newValue)) return noChange;
-        }else if (oldValue === newValue) {
-            return noChange;
-        }
+        //noChange
+        if(oldValue === newValue) return noChange;
+        if(basePath && !isRelatedWithBasePath(currentPath)) return noChange;
 
+        //delete
         if(_.isUndefined(newValue) && !_.isUndefined(oldValue)){
             changedPaths.push(currentPath);
             return deleted;
         }
 
+        //object
         if (_.isPlainObject(oldValue) && _.isPlainObject(newValue)){
-            const addedChildValues = _.pick(newValue, function(value, key){
+            const addedFields = _.pick(newValue, function(value, key){
                 return !_.isUndefined(value) && _.isUndefined(oldValue[key]);
             });
 
-            if (_.isEmpty(changedChildValues) && _.isEmpty(deletedChildValues) && _.isEmpty(addedChildValues)){
-                return noChange;
-            }
+            if (_.isEmpty(changedfields) && _.isEmpty(deletedFields) && _.isEmpty(addedFields)) return noChange;
 
-            newValue = _.assign({}, oldValue, changedChildValues, addedChildValues);
-
-            if(!_.isEmpty(deletedChildValues)){
-                _.forEach(_.keys(deletedChildValues), function(key){
-                    delete newValue[key];
-                })
-            }
+            changedPaths.push(currentPath);
+            const valueAdded = _.assign({}, oldValue, changedfields, addedFields);
+            newValue = _.omit(valueAdded, _.keys(deletedFields));
         }
 
-        if(_.isArray(oldValue) && childValues){
-            newValue = [].slice.apply(oldValue);
-            _.forEach(childValues, function(value, key){
-                newValue[key] = value;
-            });
-        }else if (_.isArray(newValue)){
-            newValue = newValue.slice();
+        //array
+        if(_.isArray(oldValue)){
+            if (_.isArray(newValue)){
+                if(_arrayEquals(oldValue, newValue)) return noChange;
+                newValue = newValue.slice();
+            }else if(childFields){
+                newValue = oldValue.slice();
+                _.forEach(childFields, function(value, key) {
+                    newValue[key] = value;
+                });
+            }
         }
 
         changedPaths.push(currentPath);
@@ -296,18 +300,6 @@ function Store(storeId, initState, pathString, eventEmitter){
                 return _parentStore.getPath(returnPath);
             }
             return returnPath;
-        },
-        async :  {
-            commit : function(){
-                _.defer(function(args){
-                    instance.commit.apply(instance,args);
-                }, arguments);
-            },
-            reset : function(){
-                _.defer(function(args){
-                    instance.reset.apply(instance,args);
-                }, arguments);
-            }
         }
     };
 

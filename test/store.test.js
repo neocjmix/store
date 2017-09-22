@@ -489,6 +489,16 @@ describe("Store는", function () {
             });
     });
 
+    it("reset case 테스트5", function () {
+        const store = Store("", [1,2,3]);
+
+        store.reset("testUpdate", []);
+        store.subscribe("").then(root=> expect(root).to.deep.equal([]));
+        store.subscribe("[0]").then(element=> expect(element).to.be.undefined);
+        store.subscribe("[1]").then(element=> expect(element).to.be.undefined);
+        store.subscribe("[2]").then(element=> expect(element).to.be.undefined);
+    });
+
     it("reset 후에도 이전 객체를 변경하지 않는다", function (done) {
         const store = Store("", {foo : {bar :{a:1,b:2}}});
         const states = [];
@@ -513,7 +523,7 @@ describe("Store는", function () {
         })
     });
 
-    it("commit한 object가 변경되어도 state가 변하지 않는다(복사본이다)", function () {
+    it("commit한 object가 변경되어도 state가 변하지 않는다(복사본이다)", function (done) {
         const result = [];
         const store = Store("", {});
         store
@@ -545,16 +555,19 @@ describe("Store는", function () {
         store.reset("testUpdate", temp);
         store.reset("testUpdate", temp);
         store.reset("testUpdate", temp);
-        expect(result).to.be.deep.equal([
-            {},
-            {a:1},
-            {a:2},
-            {a:2,b:4},
-            {a:[],b:4,c:"a"},
-            {a:[1],b:4,c:"a"},
-            {a:[1],c:1},
-            {c:1}
-        ])
+        _.defer(function(){
+            expect(result).to.be.deep.equal([
+                {},
+                {a:1},
+                {a:2},
+                {a:2,b:4},
+                {a:[],b:4,c:"a"},
+                {a:[1],b:4,c:"a"},
+                {a:[1],c:1},
+                {c:1}
+            ]);
+            done();
+        });
     });
 
 
@@ -630,7 +643,7 @@ describe("Store는", function () {
         });
     });
 
-    it("commit은 기본적으로 동기적으로 처리된다", function () {
+    it("중첩된 commit의 callback들은 동기적으로, queue를 통해서 순차적으로 처리된다", function () {
         const result = [];
         const store = Store("", {});
         store
@@ -649,7 +662,7 @@ describe("Store는", function () {
         });
 
         result.push(0);
-        expect(result).to.deep.equal([2,1,0]);
+        expect(result).to.deep.equal([1,2,0]);
     });
 
     describe("sub-store", function () {
