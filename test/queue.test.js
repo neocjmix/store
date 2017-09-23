@@ -49,4 +49,19 @@ describe("Queue는", ()=>{
         });
         expect(result).to.deep.equal([4,5,6]);
     });
+
+    it("dequeueAll 중에 enqueue되는것도 dequeue할수있다", () => {
+        const queue = Queue();
+        const result = [];
+        queue.enqueue("1").enqueue("2").enqueue("3");
+        expect(queue.dequeueAll()).to.be.deep.equal(["1","2","3"]);
+        queue.enqueue(4).enqueue(5).enqueue(6);
+        queue.dequeueAll(function(value){
+            result.push(value);
+            if(value < 10){
+                queue.enqueue(value + 1);
+            }
+        });
+        expect(result).to.deep.equal([4,5,6,5,6,7,6,7,8,7,8,9,8,9,10,9,10,10]);
+    });
 });

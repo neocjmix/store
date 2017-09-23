@@ -523,7 +523,7 @@ describe("Store는", function () {
         })
     });
 
-    it("commit한 object가 변경되어도 state가 변하지 않는다(복사본이다)", function (done) {
+    it("commit한 object가 변경되어도 state가 변하지 않는다(복사본이다)", function () {
         const result = [];
         const store = Store("", {});
         store
@@ -555,19 +555,16 @@ describe("Store는", function () {
         store.reset("testUpdate", temp);
         store.reset("testUpdate", temp);
         store.reset("testUpdate", temp);
-        _.defer(function(){
-            expect(result).to.be.deep.equal([
-                {},
-                {a:1},
-                {a:2},
-                {a:2,b:4},
-                {a:[],b:4,c:"a"},
-                {a:[1],b:4,c:"a"},
-                {a:[1],c:1},
-                {c:1}
-            ]);
-            done();
-        });
+        expect(result).to.be.deep.equal([
+            {},
+            {a:1},
+            {a:2},
+            {a:2,b:4},
+            {a:[],b:4,c:"a"},
+            {a:[1],b:4,c:"a"},
+            {a:[1],c:1},
+            {c:1}
+        ]);
     });
 
 
@@ -646,23 +643,42 @@ describe("Store는", function () {
     it("중첩된 commit의 callback들은 동기적으로, queue를 통해서 순차적으로 처리된다", function () {
         const result = [];
         const store = Store("", {});
+        let count = 0;
         store
-            .subscribe("a")
+            .subscribe("num")
             .silently()
-            .then(function(a){
-                store.commit("testUpdate", {
-                    a:2
-                });
+            .then(function(num, commit) {
+                result.push(num);
+            });
 
-                result.push(a);
+        store
+            .subscribe("num")
+            .silently()
+            .then(function(num){
+                if(count++ < 30){
+                    store.commit("a"+count, {
+                        num: num - 1
+                    });
+                }
+            });
+
+        store
+            .subscribe("num")
+            .silently()
+            .then(function(num){
+                if(count++ < 30){
+                    store.commit("b"+count, {
+                        num: num + 1
+                    });
+                }
             });
 
         store.commit("testUpdate", {
-            a:1
+            num:0
         });
 
-        result.push(0);
-        expect(result).to.deep.equal([1,2,0]);
+        result.push("*,*");
+        expect(result).to.deep.equal([0, -1, 1, -2, 0, 2, -3, -1, 1, 3, -4, -2, 0, 2, 4, -5, -3, -1, 1, 3, 5, "*,*"]);
     });
 
     describe("sub-store", function () {

@@ -18,24 +18,14 @@ const Queue = function(initialQueue){
             const result = _queue[_index++];
             if(this.length() < 0) throw new RangeError("queue is empty");
             if(this.length() < 1) _reset();
-            if(callback) {
-                callback(result);
-                return this;
-            }
+            if(callback) callback(result);
             return result;
         },
         dequeueAll :function(callback){
-            const result = _queue.slice(_index);
-            _reset();
-
-            if(callback) {
-                _(result).forEach(function(value){
-                    callback(value);
-                }).value();
-                return this;
+            const result = [];
+            while (this.length() > 0){
+                result.push(this.dequeue(callback));
             }
-
-            _reset();
             return result;
         },
         length : function(){
