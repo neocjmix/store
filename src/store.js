@@ -8,8 +8,6 @@ import Queue from './queue'
 const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
-const _callbackStack = [];
-const queue = new Queue();
 
 function _shouldChanged(value){
     return value !== noChange;
@@ -52,44 +50,7 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
     }
 }
 
-
-function _emitEvent(commit, state, eventEmitter, eventPaths) {
-    _.forEach(eventPaths, function (eventPath) {
-        const eventArguments = _.map(eventPath.split(","), function (path) {
-            return Navigate(state).path(path).get();
-        });
-        eventEmitter.emit.apply(eventEmitter, [eventPath].concat(eventArguments).concat([commit]));
-    });
-}
-
-function schedule(commit, callback){
-    commit.cause = _.last(_callbackStack);// TODO
-        if(commit.cause){
-            queue.enqueue(function(){
-                _callbackStack.push(commit);
-                callback();
-                _callbackStack.pop();
-            });
-        }else{
-            _callbackStack.push(commit);
-            callback();
-            queue.dequeueAll(function (dequeued) {
-                dequeued();
-            });
-            _callbackStack.pop();
-        }
-}
-
-function _registerEvents(eventRegistry, eventPaths) {
-    const eventName = eventPaths.join(",");
-    eventPaths.forEach(function (path) {
-        eventRegistry[path] = eventRegistry[path] || {};
-        eventRegistry[path][eventName] = eventRegistry[path][eventName] + 1 || 1;
-    });
-    return eventName;
-}
-
-function _applyPatch(state, patch) {
+function _patch(state, patch) {
     const changedPaths = [];
     const newState = traverse(patch, function (newValue, currentPath, childValues) {
         const changedChildValues = _.pick(childValues, _shouldChanged);
@@ -200,7 +161,6 @@ function _replace(state, patch, basePath) {
         return newValue;
     }, { array : true });
 
-
     return {
         changedPaths :  changedPaths,
         state : newState
@@ -209,10 +169,48 @@ function _replace(state, patch, basePath) {
 
 function Store(storeId, initState, pathString, eventEmitter){
     let _state = initState || {};
+    const _callbackStack = [];
+    const _callbackQueue = new Queue();
     const _path = _.isUndefined(pathString) ? "" : Path(pathString);
     const _parentStore = _.isFunction(initState.subscribe) && _.isFunction(initState.commit) ? initState : undefined;
     const _eventEmitter = eventEmitter || new EventEmitter();
     const _eventRegistry = {};
+
+    function _schedule(commit, callback){
+        if(_callbackStack.length > 0){
+            _callbackQueue.enqueue(function(){
+                _callbackStack.push(commit);
+                callback(commit);
+                _callbackStack.pop();
+            });
+        }else{
+            _callbackStack.push(commit);
+            callback(commit);
+            _callbackQueue.dequeueAll(function (dequeued) {
+                dequeued();
+            });
+            _callbackStack.pop();
+        }
+    }
+
+    function _emitEvent(commit, eventPaths) {
+        _.forEach(eventPaths, function (eventPath) {
+            const eventArguments = _.map(eventPath.split(","), function (path) {
+                return Navigate(_state).path(path).get();
+            });
+            _eventEmitter.emit.apply(_eventEmitter, [eventPath].concat(eventArguments).concat([commit]));
+        });
+    }
+
+    function _registerEvents(eventPaths) {
+        const eventName = eventPaths.join(",");
+        _.forEach(eventPaths, function (path) {
+            _eventRegistry[path] = _eventRegistry[path] || {};
+            _eventRegistry[path][eventName] = _eventRegistry[path][eventName] + 1 || 1;
+        });
+        return eventName;
+    }
+
     const instance = {
         getId : function(){
             return storeId;
@@ -227,7 +225,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                 }))
             }
 
-            const eventName = _registerEvents(_eventRegistry, paths);
+            const eventName = _registerEvents(paths);
             return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()).concat({
                 message: "subscribing [" + eventName + "]",
                 patch: undefined //TODO
@@ -242,14 +240,15 @@ function Store(storeId, initState, pathString, eventEmitter){
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
                 return _parentStore.commit(message, pathedPatch);
             }
-            const commit = {
+
+            _schedule({
                 message : message,
                 patch : patch,
-                mode : "commit"
-            };
-            schedule(commit,function(){
+                mode : "commit",
+                cause : _.last(_callbackStack)
+            },function(commit){
                 try{
-                    const result = _applyPatch(_state, patch);
+                    const result = _patch(_state, patch);
                     if(_shouldChanged(result.state)) _state = result.state;
 
                     const eventPaths = _(result.changedPaths)
@@ -263,7 +262,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                             return _.union(eventPaths1, eventPaths2);
                         });
 
-                    if(eventPaths && !slient) _emitEvent(commit, _state, _eventEmitter, eventPaths);
+                    if(eventPaths && !slient) _emitEvent(commit, eventPaths);
                 }catch (error){
                     error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                     throw error;
@@ -277,12 +276,12 @@ function Store(storeId, initState, pathString, eventEmitter){
                 return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
             }
 
-            const commit = {
+            _schedule({
                 message : message,
                 patch : patch,
-                mode : "reset"
-            };
-            schedule(commit, function() {
+                mode : "reset",
+                cause : _.last(_callbackStack)
+            }, function(commit) {
                 try {
                     const result = _replace(_state, patch, basePath);
                     if (_shouldChanged(result.state)) {
@@ -299,7 +298,7 @@ function Store(storeId, initState, pathString, eventEmitter){
                             return _.union(eventPaths1, eventPaths2);
                         });
 
-                    if (eventPaths) _emitEvent(commit, _state, _eventEmitter, eventPaths);
+                    if (eventPaths) _emitEvent(commit, eventPaths);
                 } catch (error) {
                     error.message = "error while reset [" + message + "] caused by\n" + error.message;
                     throw error;
