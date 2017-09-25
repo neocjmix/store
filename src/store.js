@@ -5,6 +5,7 @@ import Navigate from './navigate'
 import traverse from './traverse'
 import Queue from './queue'
 
+const MAX_RECURSION = 999;
 const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
@@ -167,6 +168,17 @@ function _replace(state, patch, basePath) {
     };
 }
 
+
+function stackTrace(commit, max){
+    max = max || 10;
+    const stack = [];
+    while(commit.cause && stack.length <= max){
+        stack.push(commit.depth + " : " + commit.message);
+        commit = commit.cause;
+    }
+    return stack.join("\n")
+}
+
 function Store(storeId, initState, pathString, eventEmitter){
     let _state = initState || {};
     const _callbackStack = [];
@@ -177,6 +189,9 @@ function Store(storeId, initState, pathString, eventEmitter){
     const _eventRegistry = {};
 
     function _schedule(commit, callback){
+        if(commit.depth >= MAX_RECURSION){
+            throw new Error("too much recursive commits : \n" + stackTrace(commit));
+        }
         if(_callbackStack.length > 0){
             _callbackQueue.enqueue(function(){
                 _callbackStack.push(commit);
@@ -241,11 +256,14 @@ function Store(storeId, initState, pathString, eventEmitter){
                 return _parentStore.commit(message, pathedPatch);
             }
 
+            const cause = _.last(_callbackStack);
+
             _schedule({
                 message : message,
                 patch : patch,
                 mode : "commit",
-                cause : _.last(_callbackStack)
+                cause : cause,
+                depth : cause ? cause.depth + 1 : 0
             },function(commit){
                 try{
                     const result = _patch(_state, patch);
@@ -276,11 +294,14 @@ function Store(storeId, initState, pathString, eventEmitter){
                 return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
             }
 
+            const cause = _.last(_callbackStack);
+
             _schedule({
                 message : message,
                 patch : patch,
                 mode : "reset",
-                cause : _.last(_callbackStack)
+                cause : cause,
+                depth : cause ? cause.depth + 1 : 0
             }, function(commit) {
                 try {
                     const result = _replace(_state, patch, basePath);
