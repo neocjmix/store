@@ -5,7 +5,7 @@ import Navigate from './navigate'
 import traverse from './traverse'
 import Queue from './queue'
 
-const MAX_RECURSION = 999;
+const MAX_RECURSION = 20;
 const noChange = new (function NoChange(){})();
 const deleted = new (function Deleted(){})();
 const _storeRegistry = {};
@@ -28,10 +28,22 @@ function _arrayEquals(array1, array2) {
     return true;
 }
 
-function _Thenable(eventEmitter, eventName, immediateValues) {
+function _registerEvents(eventRegistry, eventPaths) {
+    const eventName = eventPaths.join(",");
+    _.forEach(eventPaths, function (path) {
+        eventRegistry[path] = eventRegistry[path] || {};
+        eventRegistry[path][eventName] = eventRegistry[path][eventName] + 1 || 1;
+    });
+    return eventName;
+}
+
+function _Thenable(eventEmitter, eventRegistry, paths, immediateValues) {
     let isMuted;
     return {
+        paths : paths,
+        immediateValues : immediateValues,
         then : function(callback){
+            const eventName = _registerEvents(eventRegistry, paths);
             eventEmitter.on(eventName, function () {
                 if (isMuted) return;
                 callback.apply(this, arguments);
@@ -42,8 +54,25 @@ function _Thenable(eventEmitter, eventName, immediateValues) {
             }
             return this;
         },
+        merge : function(thenable){
+            let v;
+            if(immediateValues){
+                const values1 = immediateValues.slice(0,-1);
+                const values2 = thenable.immediateValues.slice(0,-1);
+                const newCommit = _.assign(immediateValues.slice(-1)[0], {
+                    message : immediateValues.slice(-1)[0].message + "," +
+                    thenable.immediateValues.slice(-1)[0].message
+                });
+                v = values1.concat(values2).concat([newCommit]);
+            }
+
+
+            return _Thenable(eventEmitter, eventRegistry, paths.concat(thenable.paths), v);
+                // eventName+","+thenable.eventName,
+                // values1.concat(values2).concat([newCommit]));
+        },
         silently : function(){
-            return _Thenable(eventEmitter, eventName);
+            return _Thenable(eventEmitter, eventRegistry, paths);
         },
         mute : function(){
             isMuted = true;
@@ -68,7 +97,9 @@ function _patch(state, patch) {
         }
 
         if (!_.isUndefined(oldValue) && _.isUndefined(newValue)) {
-            changedPaths.push(currentPath);
+            traverse(oldValue, function(value, path){
+                changedPaths.push(currentPath.path(path));
+            });
             return deleted;
         }
 
@@ -94,8 +125,9 @@ function _patch(state, patch) {
                 _.forEach(childValues, function(value, key){
                     newValue[key] = value;
                 });
+            }else{
+                newValue = changedChildValues;
             }
-
         }
 
         //이벤트 발생시킬 path 추가
@@ -133,16 +165,22 @@ function _replace(state, patch, basePath) {
         }
 
         //object
-        if (_.isPlainObject(oldValue) && _.isPlainObject(newValue)){
-            const addedFields = _.pick(newValue, function(value, key){
-                return !_.isUndefined(value) && _.isUndefined(oldValue[key]);
-            });
+        if (_.isPlainObject(newValue)){
+            if(_.isPlainObject(oldValue) && !_.isEmpty(oldValue)){
+                const addedFields = _.pick(newValue, function(value, key){
+                    return !_.isUndefined(value) && _.isUndefined(oldValue[key]);
+                });
 
-            if (_.isEmpty(changedfields) && _.isEmpty(deletedFields) && _.isEmpty(addedFields)) return noChange;
+                if (_.isEmpty(changedfields) && _.isEmpty(deletedFields) && _.isEmpty(addedFields)) return noChange;
 
-            changedPaths.push(currentPath);
-            const valueAdded = _.assign({}, oldValue, changedfields, addedFields);
-            newValue = _.omit(valueAdded, _.keys(deletedFields));
+                const valueAdded = _.assign({}, oldValue, changedfields, addedFields);
+                newValue = _.omit(valueAdded, _.keys(deletedFields));
+                changedPaths.push(currentPath);
+            }else{
+                traverse(newValue, function(obj, localPath){
+                    changedPaths.push(currentPath.path(localPath));
+                })
+            }
         }
 
         //array
@@ -156,9 +194,9 @@ function _replace(state, patch, basePath) {
                     newValue[key] = value;
                 });
             }
+            changedPaths.push(currentPath);
         }
 
-        changedPaths.push(currentPath);
         return newValue;
     }, { array : true });
 
@@ -189,10 +227,14 @@ function Store(storeId, initState, pathString, eventEmitter){
     const _eventRegistry = {};
 
     function _schedule(commit, callback){
-        if(commit.depth >= MAX_RECURSION){
-            throw new Error("too much recursive commits : \n" + stackTrace(commit));
-        }
         if(_callbackStack.length > 0){
+            if(commit.depth >= MAX_RECURSION){
+                _callbackQueue.dequeueAll(function (dequeued) {
+                    dequeued();
+                });
+                while(_callbackStack.length > 0) _callbackStack.pop();
+                throw new Error("too much recursive commits : \n" + stackTrace(commit));
+            }
             _callbackQueue.enqueue(function(){
                 _callbackStack.push(commit);
                 callback(commit);
@@ -217,15 +259,6 @@ function Store(storeId, initState, pathString, eventEmitter){
         });
     }
 
-    function _registerEvents(eventPaths) {
-        const eventName = eventPaths.join(",");
-        _.forEach(eventPaths, function (path) {
-            _eventRegistry[path] = _eventRegistry[path] || {};
-            _eventRegistry[path][eventName] = _eventRegistry[path][eventName] + 1 || 1;
-        });
-        return eventName;
-    }
-
     const instance = {
         getId : function(){
             return storeId;
@@ -234,26 +267,37 @@ function Store(storeId, initState, pathString, eventEmitter){
             return _parentStore && _path;
         },
         subscribe : function(...paths){
+            if(paths.length === 0) paths.push("");
             if(this.isSubStore()) {
                 return _parentStore.subscribe(...paths.map(function(path){
                     return _path.path(path).toString();
                 }))
             }
 
-            const eventName = _registerEvents(paths);
-            return _Thenable(_eventEmitter, eventName, paths.map(path => Navigate(_state).path(path).get()).concat({
-                message: "subscribing [" + eventName + "]",
+            return _Thenable(_eventEmitter, _eventRegistry, paths, paths.map(path => Navigate(_state).path(path).get()).concat({
+                // message: "subscribing [" + eventName + "]", //TODO
+                message: "subscribing",
                 patch: undefined //TODO
             }));
         },
-        commit : function(message, patch, slient){
+        commit : function (message, patch){
             if(!_.isString(message)) {
                 throw new TypeError("missing commit message");
             }
 
             if (this.isSubStore()) {
-                const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
-                return _parentStore.commit(message, pathedPatch);
+                if(_.isFunction(patch)){
+                    return _parentStore.commit(message, function(value){
+                        return Navigate({}).path(_path).set(patch(Navigate(value).path(_path).get()));
+                    });
+                }else{
+                    const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
+                    return _parentStore.commit(message, pathedPatch);
+                }
+            }
+
+            if(_.isFunction(patch)){
+                patch = patch(Navigate(_state).path(_path).get());
             }
 
             const cause = _.last(_callbackStack);
@@ -267,7 +311,7 @@ function Store(storeId, initState, pathString, eventEmitter){
             },function(commit){
                 try{
                     const result = _patch(_state, patch);
-                    if(_shouldChanged(result.state)) _state = result.state;
+                    if(_shouldChanged(result.state)) _state = result.state === deleted ? undefined : result.state;
 
                     const eventPaths = _(result.changedPaths)
                         .filter(function(changedPath) {
@@ -280,7 +324,8 @@ function Store(storeId, initState, pathString, eventEmitter){
                             return _.union(eventPaths1, eventPaths2);
                         });
 
-                    if(eventPaths && !slient) _emitEvent(commit, eventPaths);
+
+                    if(eventPaths) _emitEvent(commit, eventPaths);
                 }catch (error){
                     error.message = "error while commit ["+ message +"] caused by\n" + error.message;
                     throw error;
@@ -291,7 +336,7 @@ function Store(storeId, initState, pathString, eventEmitter){
             if(!_.isString(message)) throw new TypeError("missing reset message");
             if (this.isSubStore()) {
                 const pathedPatch = _path.toString() === "" ? patch : Navigate({}).path(_path).set(patch);
-                return _parentStore.reset(message, pathedPatch, _path.path(basePath || ""));
+                return _parentStore.reset(message, pathedPatch, _path.path(basePath));
             }
 
             const cause = _.last(_callbackStack);

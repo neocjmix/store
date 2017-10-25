@@ -43,7 +43,7 @@ describe("Store는", function () {
             });
     });
 
-    it("update시 subscribe한 callback의 parameter에 변경된 값을 전달한다", function (done) {
+    it("commit시 subscribe한 callback의 parameter에 변경된 값을 전달한다", function (done) {
         const store = Store("", {
             foo:{
                 bar : "baz",
@@ -63,6 +63,26 @@ describe("Store는", function () {
             foo : {
                 bar : 1000
             }
+        })
+    });
+
+    it("path의 기존 값을 파라미터로 받아서 변경값을 리턴하는 function을 커밋할수있다", function (done) {
+        const store = Store("", {
+            foo:{
+                bar : 0,
+            }
+        });
+
+        store
+            .subscribe("foo.bar")
+            .silently()
+            .then(bar => {
+                expect(bar).to.equal(1);
+                done();
+            });
+
+        store.path("foo.bar").commit("", function(bar){
+            return bar+1;
         })
     });
 
@@ -251,6 +271,49 @@ describe("Store는", function () {
                 }
             }
         });
+    });
+
+    it("subscribe를 머지할 수 있다", function (done) {
+        const store = Store("", {
+            foo : 1,
+            bar : 2,
+            baz : 3
+        });
+
+        store.subscribe("foo","bar")
+            .merge(store.subscribe("baz"))
+            .then(function(foo, bar, baz){
+                expect(foo).to.equal(1);
+                expect(bar).to.equal(2);
+                expect(baz).to.equal(3);
+            }).mute();
+
+        store.subscribe("foo.foo", "foo")
+            .merge(store.subscribe("bar.bar", "bar"))
+            .merge(store.path("baz").subscribe("baz")
+                .merge(store.subscribe("baz")))
+            .silently()
+            .then(function(foofoo, foo, barbar, bar, bazbaz, baz){
+                expect(foofoo).to.equal(2);
+                expect(foo).deep.equal({foo:2});
+                expect(barbar).to.equal(3);
+                expect(bar).deep.equal({bar:3});
+                expect(bazbaz).to.equal(4);
+                expect(baz).deep.equal({baz:4});
+                done();
+            });
+
+        store.commit("", {
+            foo :{
+                foo:2
+            },
+            bar :{
+                bar:3
+            },
+            baz :{
+                baz:4
+            },
+        })
     });
 
     it("update하는 값이 기존 값과 같으면 callback을 실행하지 않는다", function () {
@@ -499,6 +562,19 @@ describe("Store는", function () {
         store.subscribe("[2]").then(element=> expect(element).to.be.undefined);
     });
 
+    it("reset case 테스트6", function (done) {
+        const store = Store("store", {});
+        store
+            .subscribe("foo.bar")
+            .silently()
+            .then(function(bar){
+                expect(bar).to.deep.equal({a:1,b:2});
+                done();
+            });
+
+        store.path("foo.bar").reset("", {a:1,b:2});
+    });
+
     it("reset 후에도 이전 객체를 변경하지 않는다", function (done) {
         const store = Store("", {foo : {bar :{a:1,b:2}}});
         const states = [];
@@ -565,6 +641,44 @@ describe("Store는", function () {
             {a:[1],c:1},
             {c:1}
         ]);
+    });
+
+    it("commit한 array의 element 는 복사되지 않고 참조로 저장된다", function () {
+        const store = Store("", {});
+        const a = [{a:1},{b:2},{c:3}];
+
+        const then = store
+            .path("foo")
+            .subscribe("a")
+            .silently()
+            .then(array => {
+                expect(array[0]).to.equal(a[0]);
+                expect(array[1]).to.equal(a[1]);
+                expect(array[2]).to.equal(a[2]);
+                then.mute();
+            });
+
+        store.path("foo").commit("", {
+            a : a
+        });
+
+        store.path("foo.a").commit("", array => {
+            expect(array[0]).to.equal(a[0]);
+            expect(array[1]).to.equal(a[1]);
+            expect(array[2]).to.equal(a[2]);
+        });
+    });
+
+    it("commit한 array는 1depth 비교를한다", function () {
+        const objects = [{},{},{}];
+        const store = Store("", {a:[objects[0],objects[1],objects[2]]});
+
+        store
+            .subscribe("a")
+            .silently()
+            .then(array => expect(false).to.be.ok);
+
+        store.path("a").commit("",  [objects[0],objects[1],objects[2]]);
     });
 
 

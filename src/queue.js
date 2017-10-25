@@ -30,7 +30,8 @@ const Queue = function(initialQueue){
         },
         length : function(){
             return _queue.length - _index;
-        }
+        },
+        reset : _reset
     }
 };
 export default Queue
